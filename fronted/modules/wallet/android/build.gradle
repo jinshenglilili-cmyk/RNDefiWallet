@@ -1,0 +1,44 @@
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.wallet'
+version = '1.0.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+// 使用 expo-modules-core 管理的 Android SDK 版本
+useDefaultAndroidSdkVersions()
+
+android {
+  namespace "expo.modules.wallet"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+// Trust Wallet Core 的 Android 包发布在 GitHub Packages，需要只读 token
+// 配置方式（二选一）：
+// 1. 在 fronted/android/gradle.properties 中添加：
+//    walletcore.gpr.user=你的GitHub用户名
+//    walletcore.gpr.key=你的GitHubToken（需要 read:packages 权限）
+// 2. 设置环境变量 GITHUB_USER / GITHUB_TOKEN
+repositories {
+  maven {
+    url 'https://maven.pkg.github.com/trustwallet/wallet-core'
+    credentials {
+      username = findProperty('walletcore.gpr.user') ?: System.getenv('GITHUB_USER')
+      password = findProperty('walletcore.gpr.key') ?: System.getenv('GITHUB_TOKEN')
+    }
+  }
+}
+
+dependencies {
+  implementation 'com.trustwallet:wallet-core:4.8.4'
+}

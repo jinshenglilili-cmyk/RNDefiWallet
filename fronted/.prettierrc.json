@@ -1,0 +1,6 @@
+{
+  "$schema": "https://prettier.io/schema/config-file.json",
+  "semi": true,
+  "singleQuote": true,
+  "printWidth": 100
+}

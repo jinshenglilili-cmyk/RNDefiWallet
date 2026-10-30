@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "MyRnProject",
+    "slug": "MyRnProject",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "clwy",
+    "splash": {
+      "image": "./src/assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hrbbcfc.client",
+      "newArchEnabled": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./src/assets/android-icon-foreground.png",
+        "backgroundImage": "./src/assets/android-icon-background.png",
+        "monochromeImage": "./src/assets/android-icon-monochrome.png"
+      },
+      "package": "com.hrbbcfc.client",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./src/assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-image",
+      "expo-router",
+      "expo-status-bar",
+      "expo-web-browser",
+      "expo-video",
+      "expo-screen-orientation",
+      "expo-navigation-bar",
+      "expo-secure-store",
+      [
+        "./plugins/signing-config.js"
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": ["arm64-v8a"],
+            "usesCleartextTraffic": true
+          },
+          "ios": {
+            "extraPodfileProperties": {
+              "post_install": "|installer|\n  installer.pods_project.targets.each do |target|\n    if target.name.start_with?('React') || target.name.start_with?('ExpoModulesJSI') then\n      target.build_configurations.each do |config|\n        config.build_settings['OTHER_CPLUSPLUSFLAGS'] ||= []\n        config.build_settings['OTHER_CPLUSPLUSFLAGS'] << '-Wno-error=swift-bridge-attribute'\n      end\n    end\n  end"
+            }
+          }
+        }
+      ],
+      "expo-splash-screen"
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  username    String   @unique
+  password    String
+  nickname    String
+  avatar      String?
+  sex         Int      @default(0)
+  company     String?
+  bio         String?
+  role        Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  courses     Course[]
+  likeCourses Like[]
+  deleted     Boolean  @default(false)
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String   @unique
+  rank      Int      @default(1)
+  courses   Course[]
+}
+
+model Course {
+  id            Int       @id @default(autoincrement())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  name          String    @unique
+  image         String?
+  recommended   Boolean   @default(false)
+  introductory  Boolean   @default(false)
+  content       String?
+  likesCount    Int       @default(0)
+  chaptersCount Int       @default(0)
+  category      Category  @relation(fields: [categoryId], references: [id])
+  categoryId    Int
+  user          User      @relation(fields: [userId], references: [id])
+  userId        Int
+  chapters      Chapter[]
+  likeUsers     Like[]
+}
+
+model Chapter {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  title     String
+  content   String?
+  video     String?
+  rank      Int      @default(1)
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  Int
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  Int
+}
+
+model Article {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  title     String
+  content   String?
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String?
+  icp       String?
+  copyright String?
+}

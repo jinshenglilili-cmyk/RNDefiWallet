@@ -1,0 +1,10 @@
+{
+  "name": "expo-modules-wallet",
+  "version": "1.0.0",
+  "description": "基于 Trust Wallet Core 的内嵌钱包原生模块（ETH / TRON / BTC）",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "author": "",
+  "license": "MIT",
+  "homepage": "https://example.com"
+}
