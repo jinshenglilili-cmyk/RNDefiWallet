@@ -1,6 +1,7 @@
                                                                         # RN DeFi Wallet
 
-基于 React Native + Expo 的 DeFi 移动钱包，配套长乐未央 [React Native 实战课程](https://clwy.cn/courses/react-native)后端接口。
+基于 React Native + Expo 的 DeFi 移动钱包，
+//配套 [React Native 实战课程](https://clwy.cn/courses/react-native)后端接口。
 
 ![Expo](https://img.shields.io/badge/Expo-57-000020?logo=exponent)
 ![React Native](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)
