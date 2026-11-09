@@ -48,6 +48,8 @@ export default function Layout() {
             animation: 'slide_from_bottom',
           }}
         />
+        {/* 401 中转页：request.js 里 token 失效自动跳入，清登录态后 replace 回登录页 */}
+        <Stack.Screen name="auth/sign-out" options={{ headerShown: false }} />
       </Stack>
   );
 }
