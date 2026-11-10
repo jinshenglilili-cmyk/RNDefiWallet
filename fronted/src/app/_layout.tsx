@@ -29,6 +29,7 @@ export default function Layout() {
         {/* 钱包/行情/浏览器的二级页面：普通 push 推出。
             钱包二级页用原生导航栏（返回箭头 + 居中标题，同「连接钱包」） */}
         <Stack.Screen name="market/[id]" options={{ title: '详情' }} />
+        <Stack.Screen name="browser/index" options={{ headerShown: false }} />
         <Stack.Screen name="browser/viewer" options={{ title: '浏览器' }} />
         <Stack.Screen name="wallet/create" options={{ title: '创建钱包' }} />
         <Stack.Screen name="wallet/import" options={{ title: '导入钱包' }} />

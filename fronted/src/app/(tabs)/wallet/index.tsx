@@ -209,6 +209,7 @@ export default function WalletTab() {
         <FeatureRow icon="✍️" label="信息签名" href="/wallet/sign" disabled={!hasAccounts} />
         <FeatureRow icon="💸" label="转账" href="/wallet/transactions" disabled={!hasAccounts} />
         <FeatureRow icon="➕" label="新增账号" href="/wallet/add-account" disabled={!hasAccounts} />
+        <FeatureRow icon="🌐" label="浏览器" href="/browser" />
         <FeatureRow icon="🔗" label="连接 DApp (WalletConnect)" href="/wc" disabled={!hasAccounts} />
         <FeatureRow icon="🗑" label="删除钱包" destructive onPress={confirmDeleteWallet} />
       </View>

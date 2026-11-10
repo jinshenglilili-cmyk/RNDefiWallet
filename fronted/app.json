@@ -47,7 +47,9 @@
         "expo-build-properties",
         {
           "android": {
-            "buildArchs": ["arm64-v8a"],
+            "buildArchs": [
+              "arm64-v8a"
+            ],
             "usesCleartextTraffic": true
           },
           "ios": {
@@ -57,7 +59,8 @@
           }
         }
       ],
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-localization"
     ]
   }
 }

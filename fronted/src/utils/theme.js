@@ -18,6 +18,8 @@ export function useTheme() {
     green: dark ? '#73FA79' : '#008F00',
     /** 跌（< 0） */
     red: dark ? '#FF2F92' : '#941651',
+    /** 警示（健康因子偏低的中间档等） */
+    orange: dark ? '#FF9F0A' : '#C93400',
     /** 链接色 */
     link: '#007AFF',
     /** 卡片/输入框背景（次级文字 10%） */
@@ -36,6 +38,7 @@ export const lightColors = {
   secondaryText: '#919191',
   green: '#008F00',
   red: '#941651',
+  orange: '#C93400',
   link: '#007AFF',
   card: 'rgba(145,145,145,0.10)',
   bar: 'rgba(145,145,145,0.06)',

@@ -38,12 +38,29 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MdTabBarIcon name="chart-line" color={color} />
         }}
       />
+      {/* DeFi 三件套：Swap / LP / 借贷（均在 BSC 链上执行） */}
       <Tabs.Screen
-        name="browser"
+        name="swap"
         options={{
-          title: '浏览器',
+          title: 'Swap',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MdTabBarIcon name="web" color={color} />,
+          tabBarIcon: ({ color }) => <MdTabBarIcon name="swap-horizontal" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="lp"
+        options={{
+          title: 'LP',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <MdTabBarIcon name="layers-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="lend"
+        options={{
+          title: '借贷',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <MdTabBarIcon name="bank-outline" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -54,7 +71,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MdTabBarIcon name="wallet-outline" color={color} />,
         }}
       />
-      {/* 二级页面（详情/创建/导入/转账记录等）已移到 (tabs) 外的根 Stack，
+      {/* 浏览器不再是 tab：入口移到钱包 tab 的「常用功能」，页面本身移到根 Stack（/browser）。
+          二级页面（详情/创建/导入/转账记录等）在 (tabs) 外的根 Stack，
           从 tab 内跳转是真正的 push，返回不会把 tab 重置回首页 */}
     </Tabs>
   );
