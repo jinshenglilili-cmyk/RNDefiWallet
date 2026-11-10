@@ -3,6 +3,7 @@ import { View, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useAuthStore } from '@/stores/auth';
+import { t as tt } from '@/i18n';
 
 /**
  * 退出登录中转页：request.js 收到 401（token 过期）时跳到这里。
@@ -14,7 +15,7 @@ export default function SignOut() {
   useEffect(() => {
     (async () => {
       await useAuthStore.getState().signOut();
-      Alert.alert('提示', '登录超时，请重新登录！', [
+      Alert.alert(tt('errors.notice'), tt('errors.sessionExpired'), [
         {
           text: 'OK',
           onPress: () => router.replace('/auth'),

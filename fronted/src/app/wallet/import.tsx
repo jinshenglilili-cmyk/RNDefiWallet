@@ -6,6 +6,7 @@ import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
 import { useAuthStore } from '@/stores/auth';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /** 导入钱包：粘贴/输入助记词 -> 校验 -> 保存并派生账号 0 */
 export default function ImportWallet() {
@@ -21,18 +22,18 @@ export default function ImportWallet() {
       const mnemonic = text.trim().replace(/\s+/g, ' ').toLowerCase();
       const valid = await Wallet.validateMnemonic(mnemonic);
       if (!valid) {
-        Alert.alert('导入失败', '助记词不合法（检查拼写、顺序是否完整）');
+        Alert.alert(tt('wallet.import.failed'), tt('wallet.import.invalid'));
         return;
       }
       await walletStore.saveMnemonic(mnemonic);
       const address = await Wallet.deriveAddress('ethereum', mnemonic, 0);
       await walletStore.addAccount(mnemonic, 0, address);
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
-      Alert.alert('导入成功', '账号已恢复，可以开始使用了', [
-        { text: '好的', onPress: () => router.back() },
+      Alert.alert(tt('wallet.import.successTitle'), tt('wallet.import.successMsg'), [
+        { text: tt('wallet.common.ok'), onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert('导入失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.import.failed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -40,17 +41,15 @@ export default function ImportWallet() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>导入钱包</Text>
-      <Text style={styles.hint}>
-        输入 12 或 24 个单词的助记词，单词之间用空格分隔。
-      </Text>
+      <Text style={styles.title}>{tt('wallet.import.title')}</Text>
+      <Text style={styles.hint}>{tt('wallet.import.hint')}</Text>
       <TextInput
         style={styles.input}
         multiline
         numberOfLines={4}
         value={text}
         onChangeText={setText}
-        placeholder="如：ripple ladder..."
+        placeholder={tt('wallet.import.placeholder')}
         placeholderTextColor={t.secondaryText}
         autoCapitalize="none"
         autoCorrect={false}
@@ -61,7 +60,7 @@ export default function ImportWallet() {
         disabled={!text.trim() || busy}
         onPress={handleImport}
       >
-        <Text style={styles.buttonText}>{busy ? '导入中…' : '导入'}</Text>
+        <Text style={styles.buttonText}>{busy ? tt('wallet.import.importing') : tt('wallet.import.button')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

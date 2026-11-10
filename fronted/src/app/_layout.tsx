@@ -3,8 +3,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import screenOptions from '@/options/screenOptions';
 import { SplashScreenController } from '@/utils/splash';
+import { t as tt, useI18nLocale } from '@/i18n';
 
 export default function Layout() {
+  // 订阅语言：切换语言时重新渲染，导航栏标题随语言刷新
+  useI18nLocale();
   function CloseButton() {
     const router = useRouter();
     return (
@@ -28,23 +31,23 @@ export default function Layout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {/* 钱包/行情/浏览器的二级页面：普通 push 推出。
             钱包二级页用原生导航栏（返回箭头 + 居中标题，同「连接钱包」） */}
-        <Stack.Screen name="market/[id]" options={{ title: '详情' }} />
+        <Stack.Screen name="market/[id]" options={{ title: tt('market.detail.title') }} />
         <Stack.Screen name="browser/index" options={{ headerShown: false }} />
-        <Stack.Screen name="browser/viewer" options={{ title: '浏览器' }} />
-        <Stack.Screen name="wallet/create" options={{ title: '创建钱包' }} />
-        <Stack.Screen name="wallet/import" options={{ title: '导入钱包' }} />
-        <Stack.Screen name="wallet/add-account" options={{ title: '新增账号' }} />
-        <Stack.Screen name="wallet/transactions" options={{ title: '转账记录' }} />
-        <Stack.Screen name="wallet/sign" options={{ title: '信息签名' }} />
-        <Stack.Screen name="wallet/export" options={{ title: '导出助记词' }} />
+        <Stack.Screen name="browser/viewer" options={{ title: tt('browser.title') }} />
+        <Stack.Screen name="wallet/create" options={{ title: tt('wallet.create.title') }} />
+        <Stack.Screen name="wallet/import" options={{ title: tt('wallet.import.title') }} />
+        <Stack.Screen name="wallet/add-account" options={{ title: tt('wallet.addAccount.title') }} />
+        <Stack.Screen name="wallet/transactions" options={{ title: tt('wallet.transactions.title') }} />
+        <Stack.Screen name="wallet/sign" options={{ title: tt('wallet.sign.title') }} />
+        <Stack.Screen name="wallet/export" options={{ title: tt('wallet.export.title') }} />
         <Stack.Screen name="settings/index" options={{ headerShown: false }} />
-        <Stack.Screen name="wc/index" options={{ title: '连接钱包' }} />
+        <Stack.Screen name="wc/index" options={{ title: tt('wc.connect.title') }} />
         {/* Modal */}
         <Stack.Screen
           name="auth/index"
           options={{
             presentation: 'modal',
-            title: '会员登录 & 注册',
+            title: tt('auth.signin.title'),
             headerLeft: () => <CloseButton />,
             animation: 'slide_from_bottom',
           }}

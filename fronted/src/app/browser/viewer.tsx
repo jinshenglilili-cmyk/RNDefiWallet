@@ -16,6 +16,7 @@ import INJECTED_PROVIDER from '@/utils/injectedProvider';
 import * as rpc from '@/utils/rpc';
 import { formatEther, hexToDecimal } from '@/utils/format';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /**
  * DApp 浏览器查看页（对齐参考项目 BrowserTabView 布局：
@@ -70,7 +71,7 @@ export default function BrowserViewer() {
   const getAccount = useCallback(async () => {
     const meta = await walletStore.getMeta();
     const address = meta.accounts[meta.current];
-    if (!address) throw new Error('尚未创建钱包，请先到「钱包」Tab 创建');
+    if (!address) throw new Error(tt('browser.noWallet'));
     return address;
   }, []);
 
@@ -100,7 +101,7 @@ export default function BrowserViewer() {
           }
           setPending({
             id,
-            title: '连接钱包',
+            title: tt('browser.requestConnect'),
             method,
             from: address,
             run: async () => {
@@ -120,7 +121,7 @@ export default function BrowserViewer() {
           }
           setPending({
             id,
-            title: '连接钱包',
+            title: tt('browser.requestConnect'),
             method,
             from: address,
             run: async () => {
@@ -147,7 +148,7 @@ export default function BrowserViewer() {
           const message = hexToUtf8(messageHex);
           setPending({
             id,
-            title: '签名消息',
+            title: tt('browser.requestSign'),
             message,
             method,
             run: async () => {
@@ -164,7 +165,7 @@ export default function BrowserViewer() {
           const valueWei = tx.value ? BigInt(tx.value) : 0n;
           setPending({
             id,
-            title: '发送交易',
+            title: tt('browser.requestSend'),
             tx,
             method,
             from,
@@ -199,7 +200,7 @@ export default function BrowserViewer() {
           return;
         }
 
-        respondError(id, `暂不支持的方法：${method}`);
+        respondError(id, tt('browser.unsupportedMethod', { method }));
       } catch (err) {
         respondError(id, err.message ?? String(err));
       }
@@ -248,7 +249,7 @@ export default function BrowserViewer() {
       return;
     }
     if (data.type === 'eth-request') {
-      setDebugMsg(`收到请求 #${data.id} ${data.method}`);
+      setDebugMsg(tt('browser.debugRequest', { id: data.id, method: data.method }));
       handleRequest(data.id, data.method, data.params);
     }
   }
@@ -265,7 +266,7 @@ export default function BrowserViewer() {
   }
 
   function handleReject() {
-    respondError(pending.id, '用户拒绝了请求');
+    respondError(pending.id, tt('browser.requestRejected'));
     setPending(null);
   }
 
@@ -347,11 +348,11 @@ export default function BrowserViewer() {
         />
         {account ? (
           <>
-            <Text style={styles.walletName}>内置钱包</Text>
+            <Text style={styles.walletName}>{tt('browser.builtInWallet')}</Text>
             <Text style={styles.walletAddr}>{shorten(account, 6, 4)}</Text>
           </>
         ) : (
-          <Text style={styles.walletName}>未连接钱包（请先到「钱包」Tab 创建）</Text>
+          <Text style={styles.walletName}>{tt('browser.notConnected')}</Text>
         )}
       </View>
 
@@ -388,10 +389,10 @@ export default function BrowserViewer() {
             <Text style={styles.dialogTitle}>{pending?.title ?? ''}</Text>
             <Text style={styles.dialogDesc}>
               {pending?.tx
-                ? '请确认以下交易详情'
+                ? tt('browser.confirmTx')
                 : pending?.message
-                  ? '请确认以下签名消息来自当前页面'
-                  : '该页面请求连接你的内置钱包账号'}
+                  ? tt('browser.confirmSign')
+                  : tt('browser.confirmConnect')}
             </Text>
 
             {/* 消息明文（签名类） */}
@@ -407,7 +408,7 @@ export default function BrowserViewer() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Transaction</Text>
                 <Text style={styles.detailLabel}>To</Text>
-                <Text style={styles.monoCard}>{pending.tx.to ?? '(空)'}</Text>
+                <Text style={styles.monoCard}>{pending.tx.to ?? tt('browser.empty')}</Text>
                 <Text style={styles.detailLabel}>
                   Value (wei) = {pending.tx.value ? formatEther(BigInt(pending.tx.value).toString()) : '0'} ETH
                 </Text>
@@ -437,10 +438,10 @@ export default function BrowserViewer() {
 
             <View style={styles.dialogButtons}>
               <TouchableOpacity style={[styles.dialogButton, styles.reject]} onPress={handleReject}>
-                <Text style={styles.rejectText}>拒绝</Text>
+                <Text style={styles.rejectText}>{tt('browser.reject')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.dialogButton} onPress={handleApprove}>
-                <Text style={styles.approveText}>批准</Text>
+                <Text style={styles.approveText}>{tt('browser.approve')}</Text>
               </TouchableOpacity>
             </View>
           </View>

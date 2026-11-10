@@ -4,6 +4,7 @@ import { Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 import { TOKENS } from '@/utils/defi/tokens';
 import { formatTokenAmount } from '@/utils/defi/format';
 
@@ -16,12 +17,12 @@ export function DefiGuard({ session, hasAccount, children }) {
       <View style={styles.guard}>
         <Text style={styles.guardIcon}>🔐</Text>
         <Text style={[styles.guardTitle, { color: t.accent }]}>
-          {!session ? '请先登录' : '还没有钱包账号'}
+          {!session ? tt('defi.common.pleaseLogin') : tt('defi.common.noWallet')}
         </Text>
         <Text style={[styles.guardHint, { color: t.secondaryText }]}>
           {!session
-            ? '登录后即可使用 Swap / 流动性 / 借贷功能'
-            : '创建或导入钱包后即可使用 DeFi 功能'}
+            ? tt('defi.common.loginHint')
+            : tt('defi.common.walletHint')}
         </Text>
         <TouchableOpacity
           style={[styles.guardButton, { backgroundColor: t.accent }]}
@@ -30,16 +31,16 @@ export function DefiGuard({ session, hasAccount, children }) {
             if (!session) {
               router.push('/auth');
             } else {
-              Alert.alert('添加钱包', '创建新钱包还是导入已有钱包？', [
-                { text: '取消', style: 'cancel' },
-                { text: '创建钱包', onPress: () => router.push('/wallet/create') },
-                { text: '导入钱包', onPress: () => router.push('/wallet/import') },
+              Alert.alert(tt('defi.common.addWalletTitle'), tt('defi.common.addWalletMessage'), [
+                { text: tt('common.cancel'), style: 'cancel' },
+                { text: tt('defi.common.createWallet'), onPress: () => router.push('/wallet/create') },
+                { text: tt('defi.common.importWallet'), onPress: () => router.push('/wallet/import') },
               ]);
             }
           }}
         >
           <Text style={[styles.guardButtonText, { color: t.background }]}>
-            {!session ? '去登录' : '去添加钱包'}
+            {!session ? tt('defi.common.goLogin') : tt('defi.common.goAddWallet')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -79,7 +80,7 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
             <Text style={{ fontSize: 20, color: t.link, width: 60 }}>✕</Text>
           </TouchableOpacity>
           <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: t.accent }}>
-            选择代币
+              {tt('defi.common.selectToken')}
           </Text>
           <View style={{ width: 60 }} />
         </View>
@@ -111,7 +112,7 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
           </TouchableOpacity>
         ))}
         <Text style={{ fontSize: 11, color: t.secondaryText, marginTop: 8, lineHeight: 18 }}>
-          仅展示常用 BSC 代币；BNB 为原生币（含 gas 余额），兑换路径自动走 WBNB。
+          {tt('defi.common.tokenSheetTip')}
         </Text>
       </View>
     </Modal>

@@ -11,6 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { post, del, get as apiGet } from '@/utils/request';
 import * as walletStore from '@/utils/walletStore';
+import { t as tt } from '@/i18n';
 
 const SESSION_KEY = 'session';
 
@@ -88,8 +89,8 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       // 登录失败（后端校验错误带 errors 数组；网络/401 等情况没有，退回 err.message）
       Alert.alert(
-        '错误',
-        err.errors?.[0] ?? err.message ?? '登录失败，请稍后重试',
+        tt('errors.error'),
+        err.errors?.[0] ?? err.message ?? tt('auth.signInFailed'),
         [
           {
             text: 'OK',
@@ -108,7 +109,7 @@ export const useAuthStore = create((set, get) => ({
       await get().setSession(data.token);
       // 钱包数据按登录账号分开保存：切到该用户名下的钱包数据
       await get().switchOwner(data.user?.id);
-      Alert.alert('提示', '您已经注册成功。', [
+      Alert.alert(tt('errors.notice'), tt('auth.signUpSuccess'), [
         {
           text: 'OK',
           onPress: () => {
@@ -119,7 +120,7 @@ export const useAuthStore = create((set, get) => ({
       ]);
     } catch (err) {
       // 注册失败（同 signIn：errors 可能不存在）
-      Alert.alert('错误', err.errors?.[0] ?? err.message ?? '注册失败，请稍后重试', [
+      Alert.alert(tt('errors.error'), err.errors?.[0] ?? err.message ?? tt('auth.signUpFailed'), [
         {
           text: 'OK',
           onPress: () => setLoading(false),

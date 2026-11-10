@@ -1,6 +1,7 @@
 // PancakeSwap V2：报价 / 兑换 / 流动性（Factory + Router）
 
 import { ethCall } from './bscRpc';
+import { t as tt } from '@/i18n';
 import { encodeCall, decodeWords, wordToAddress } from './abi';
 import { PANCAKE_ROUTER, PANCAKE_FACTORY, WBNB } from './tokens';
 import { parseEther, formatEther } from '../format';
@@ -54,7 +55,7 @@ export async function getAmountsOut(amountIn, path) {
   );
   const words = decodeWords(result);
   // 返回 = [数组偏移, 长度, 元素...]
-  if (words.length < 2) throw new Error('报价失败：池子流动性不足');
+  if (words.length < 2) throw new Error(tt('defi.pancake.quoteFailed'));
   return words.slice(2);
 }
 

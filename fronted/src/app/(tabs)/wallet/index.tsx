@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useWalletStore } from '@/stores/wallet';
 import { accountName } from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /** 地址截断：前8...后8 */
 function shorten(addr) {
@@ -57,10 +58,10 @@ export default function WalletTab() {
 
   // 删除账号（对齐参考项目：删除当前账号后选中退化为最后一个）
   function confirmDeleteAccount(index) {
-    Alert.alert('删除账号', `确定删除 ${accountName(meta, index)}？\n同一助记词可随时重新派生该地址。`, [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(tt('wallet.tab.deleteAccountTitle'), tt('wallet.tab.deleteAccountMsg', { name: accountName(meta, index) }), [
+      { text: tt('common.cancel'), style: 'cancel' },
       {
-        text: '删除',
+        text: tt('common.delete'),
         style: 'destructive',
         onPress: async () => {
           await deleteAccount(index);
@@ -70,10 +71,10 @@ export default function WalletTab() {
   }
 
   function confirmDeleteWallet() {
-    Alert.alert('删除钱包', '将清空本机保存的助记词，无法恢复，确定？', [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(tt('wallet.tab.deleteWalletTitle'), tt('wallet.tab.deleteWalletMsg'), [
+      { text: tt('common.cancel'), style: 'cancel' },
       {
-        text: '删除',
+        text: tt('common.delete'),
         style: 'destructive',
         onPress: async () => {
           await deleteWallet();
@@ -105,10 +106,10 @@ export default function WalletTab() {
         <TouchableOpacity
           activeOpacity={0.6}
           onPress={() =>
-            Alert.alert('提示', '请先创建钱包或导入钱包，再使用该功能', [
-              { text: '取消', style: 'cancel' },
-              { text: '创建钱包', onPress: () => router.push('/wallet/create') },
-              { text: '导入钱包', onPress: () => router.push('/wallet/import') },
+            Alert.alert(tt('wallet.tab.hintTitle'), tt('wallet.tab.hintNeedWallet'), [
+              { text: tt('common.cancel'), style: 'cancel' },
+              { text: tt('wallet.tab.createWallet'), onPress: () => router.push('/wallet/create') },
+              { text: tt('wallet.tab.importWallet'), onPress: () => router.push('/wallet/import') },
             ])
           }
         >
@@ -137,7 +138,7 @@ export default function WalletTab() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* 头部：标题 + 齿轮（push 设置页） */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>钱包</Text>
+        <Text style={styles.headerTitle}>{tt('wallet.tab.title')}</Text>
         <TouchableOpacity
           style={styles.gearButton}
           activeOpacity={0.7}
@@ -164,13 +165,13 @@ export default function WalletTab() {
         <View style={styles.profileInfo}>
           {session ? (
             <>
-              <Text style={styles.profileName}>{userInfo?.nickname ?? '已登录'}</Text>
+              <Text style={styles.profileName}>{userInfo?.nickname ?? tt('wallet.tab.loggedIn')}</Text>
               <Text style={styles.profileSub}>{userInfo?.email ?? ''}</Text>
             </>
           ) : (
             <>
-              <Text style={styles.profileName}>未登录</Text>
-              <Text style={styles.profileSub}>点击登录，使用钱包全部功能</Text>
+              <Text style={styles.profileName}>{tt('wallet.tab.notLoggedIn')}</Text>
+              <Text style={styles.profileSub}>{tt('wallet.tab.tapToLogin')}</Text>
             </>
           )}
         </View>
@@ -181,7 +182,7 @@ export default function WalletTab() {
       {hasAccounts ? (
         <TouchableOpacity style={styles.accountCard} activeOpacity={0.7} onPress={() => setSelectorVisible(true)}>
           <View style={styles.accountTopRow}>
-            <Text style={styles.accountSectionLabel}>当前账号</Text>
+            <Text style={styles.accountSectionLabel}>{tt('wallet.tab.currentAccount')}</Text>
             <Text style={styles.accountChevron}>▾</Text>
           </View>
           <View style={styles.accountNameRow}>
@@ -197,33 +198,30 @@ export default function WalletTab() {
         </TouchableOpacity>
       ) : (
         <View style={[styles.accountCard, styles.accountEmpty]}>
-          <Text style={styles.accountEmptyTitle}>暂无钱包</Text>
-          <Text style={styles.accountEmptyHint}>用下方「创建钱包」或「导入钱包」添加账号</Text>
+          <Text style={styles.accountEmptyTitle}>{tt('wallet.tab.noWalletTitle')}</Text>
+          <Text style={styles.accountEmptyHint}>{tt('wallet.tab.noWalletHint')}</Text>
         </View>
       )}
 
       {/* 常用功能（所有功能需登录；未登录点击先调起登录页） */}
-      <Text style={styles.listHeader}>常用功能</Text>
+      <Text style={styles.listHeader}>{tt('wallet.tab.featuresHeader')}</Text>
       <View style={styles.listCard}>
-        <FeatureRow icon="🔑" label="导出助记词" href="/wallet/export" disabled={!hasAccounts} />
-        <FeatureRow icon="✍️" label="信息签名" href="/wallet/sign" disabled={!hasAccounts} />
-        <FeatureRow icon="💸" label="转账" href="/wallet/transactions" disabled={!hasAccounts} />
-        <FeatureRow icon="➕" label="新增账号" href="/wallet/add-account" disabled={!hasAccounts} />
-        <FeatureRow icon="🌐" label="浏览器" href="/browser" />
-        <FeatureRow icon="🔗" label="连接 DApp (WalletConnect)" href="/wc" disabled={!hasAccounts} />
-        <FeatureRow icon="🗑" label="删除钱包" destructive onPress={confirmDeleteWallet} />
+        <FeatureRow icon="🔑" label={tt('wallet.tab.exportMnemonic')} href="/wallet/export" disabled={!hasAccounts} />
+        <FeatureRow icon="✍️" label={tt('wallet.tab.signMessage')} href="/wallet/sign" disabled={!hasAccounts} />
+        <FeatureRow icon="💸" label={tt('wallet.tab.transfer')} href="/wallet/transactions" disabled={!hasAccounts} />
+        <FeatureRow icon="➕" label={tt('wallet.tab.addAccount')} href="/wallet/add-account" disabled={!hasAccounts} />
+        <FeatureRow icon="🌐" label={tt('wallet.tab.browser')} href="/browser" />
+        <FeatureRow icon="🔗" label={tt('wallet.tab.connectDApp')} href="/wc" disabled={!hasAccounts} />
+        <FeatureRow icon="🗑" label={tt('wallet.tab.deleteWallet')} destructive onPress={confirmDeleteWallet} />
       </View>
       {!hasAccounts ? (
         <View style={styles.listCard}>
-          <FeatureRow icon="📝" label="创建钱包" href="/wallet/create" />
-          <FeatureRow icon="📥" label="导入钱包" href="/wallet/import" />
+          <FeatureRow icon="📝" label={tt('wallet.tab.createWallet')} href="/wallet/create" />
+          <FeatureRow icon="📥" label={tt('wallet.tab.importWallet')} href="/wallet/import" />
         </View>
       ) : null}
 
-      <Text style={styles.tip}>
-        测试提示：转账走以太坊主网，需要真实 ETH 作 gas；{'\n'}
-        请先用测试金额验证流程。
-      </Text>
+      <Text style={styles.tip}>{tt('wallet.tab.mainnetTip')}</Text>
 
       {/* 选择账号 sheet（对齐参考项目 AccountSelectorView） */}
       <Modal visible={selectorVisible} animationType="slide" onRequestClose={() => setSelectorVisible(false)}>
@@ -232,7 +230,7 @@ export default function WalletTab() {
             <TouchableOpacity onPress={() => setSelectorVisible(false)}>
               <Text style={styles.selectorClose}>✕</Text>
             </TouchableOpacity>
-            <Text style={styles.selectorTitle}>选择账号</Text>
+            <Text style={styles.selectorTitle}>{tt('wallet.tab.selectAccount')}</Text>
             <View style={{ width: 60 }} />
           </View>
 
@@ -260,16 +258,13 @@ export default function WalletTab() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => confirmDeleteAccount(index)} style={styles.selectorDelete}>
-                  <Text style={styles.selectorDeleteText}>删除</Text>
+                  <Text style={styles.selectorDeleteText}>{tt('common.delete')}</Text>
                 </TouchableOpacity>
               </View>
             );
           })}
 
-          <Text style={styles.selectorTip}>
-            删除账号只是移除本地记录，同一助记词可重新派生；{'\n'}
-            删除当前账号后自动选中最后一个账号。
-          </Text>
+          <Text style={styles.selectorTip}>{tt('wallet.tab.selectorTip')}</Text>
         </View>
       </Modal>
     </ScrollView>

@@ -4,6 +4,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 
 import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /** 导出助记词：二次确认 + 生物识别验证后显示 */
 export default function ExportWallet() {
@@ -13,10 +14,10 @@ export default function ExportWallet() {
 
   // 风险提示 -> 生物识别（Face ID / Touch ID）-> 读取助记词
   function reveal() {
-    Alert.alert('风险提示', '任何人拿到助记词就能拿走全部资产，确认周围环境安全？', [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(tt('wallet.export.riskTitle'), tt('wallet.export.riskMsg'), [
+      { text: tt('common.cancel'), style: 'cancel' },
       {
-        text: '继续',
+        text: tt('wallet.export.continue'),
         onPress: async () => {
           const ok = await authenticate();
           if (!ok) return; // 生物识别失败或被取消，保持隐藏
@@ -29,13 +30,9 @@ export default function ExportWallet() {
   if (!mnemonic) {
     return (
       <View style={styles.container}>
-        <Text style={styles.hint}>
-          助记词是资产的唯一凭证。{'\n'}
-          建议离线抄写两份，分别保存在安全的地方。{'\n\n'}
-          查看前需要通过生物识别验证。
-        </Text>
+        <Text style={styles.hint}>{tt('wallet.export.hint')}</Text>
         <TouchableOpacity style={styles.button} onPress={reveal}>
-          <Text style={styles.buttonText}>显示助记词</Text>
+          <Text style={styles.buttonText}>{tt('wallet.export.show')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -52,7 +49,7 @@ export default function ExportWallet() {
         ))}
       </View>
       <TouchableOpacity style={styles.hideButton} onPress={() => setMnemonic(null)}>
-        <Text style={styles.hideText}>隐藏</Text>
+        <Text style={styles.hideText}>{tt('wallet.export.hide')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -65,22 +62,22 @@ async function authenticate() {
     const enrolled = await LocalAuthentication.isEnrolledAsync();
     if (!hasHardware || !enrolled) {
       Alert.alert(
-        '未设置生物识别',
-        '本机未录入 Face ID / Touch ID，无法验证身份，请先到系统设置录入。'
+        tt('wallet.export.notEnrolledTitle'),
+        tt('wallet.export.notEnrolledMsg')
       );
       return false;
     }
     const res = await LocalAuthentication.authenticateAsync({
-      promptMessage: '验证身份以查看助记词',
-      cancelLabel: '取消',
+      promptMessage: tt('wallet.export.promptMessage'),
+      cancelLabel: tt('common.cancel'),
     });
     if (!res.success) {
-      Alert.alert('验证未通过', '生物识别失败或已取消');
+      Alert.alert(tt('wallet.export.verifyFailedTitle'), tt('wallet.export.verifyFailedMsg'));
       return false;
     }
     return true;
   } catch (err) {
-    Alert.alert('验证失败', String(err.message ?? err));
+    Alert.alert(tt('wallet.export.verifyError'), String(err.message ?? err));
     return false;
   }
 }

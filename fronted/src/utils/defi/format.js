@@ -1,5 +1,7 @@
 // DeFi 金额格式化（18 位精度为主，全 BigInt）
 
+import { t as tt } from '@/i18n';
+
 /** 最小单位 → 可读字符串（最多 maxFrac 位小数，末尾去 0） */
 export function formatTokenAmount(amount, decimals = 18, maxFrac = 6) {
   const v = BigInt(amount ?? 0n);
@@ -15,11 +17,11 @@ export function formatTokenAmount(amount, decimals = 18, maxFrac = 6) {
 export function parseTokenAmount(text, decimals = 18) {
   const s = String(text).trim();
   if (!/^\d+(\.\d+)?$/.test(s)) {
-    throw new Error(`金额格式不对：${text}`);
+    throw new Error(tt('defi.format.invalidAmount', { text }));
   }
   const [whole, frac = ''] = s.split('.');
   if (frac.length > decimals) {
-    throw new Error(`小数位最多 ${decimals} 位`);
+    throw new Error(tt('defi.format.tooManyDecimals', { decimals }));
   }
   const base = 10n ** BigInt(decimals);
   return BigInt(whole || '0') * base + BigInt(frac.padEnd(decimals, '0') || '0');

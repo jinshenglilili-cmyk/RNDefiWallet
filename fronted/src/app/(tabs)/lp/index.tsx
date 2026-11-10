@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
+import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
@@ -113,18 +114,18 @@ export default function LpTab() {
       setBusy(true);
       const from = await assertSigningAccount(meta);
       const tokenAmt = parseTokenAmount(tokenAmount, 18);
-      if (tokenAmt <= 0n) throw new Error('请输入代币数量');
+      if (tokenAmt <= 0n) throw new Error(tt('defi.lp.needTokenAmount'));
       // Router.quote 按储备比例算需要的 BNB（+1 防止整数截断导致 dust 不足）
       const bnbNeeded = (await pancake.quote(tokenAmt, pool.reserveToken, pool.reserveBnb)) + 1n;
       const gasReserve = 10n ** 16n; // 预留 0.01 BNB 作 gas
       if (bnbBalance === null || bnbBalance < bnbNeeded + gasReserve) {
-        throw new Error('BNB 余额不足（含 gas 预留 0.01 BNB）');
+        throw new Error(tt('defi.lp.insufficientBnb'));
       }
       const tokenMin = applySlippage(tokenAmt, 0.5);
       const bnbMin = applySlippage(bnbNeeded, 0.5);
       const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
 
-      setBusyText('授权 Router…');
+      setBusyText(tt('defi.lp.busyApprovingRouter'));
       await ensureApproval({
         tokenAddress: pool.token.address,
         owner: address,
@@ -133,7 +134,7 @@ export default function LpTab() {
         mnemonic,
       });
 
-      setBusyText('签名广播中…');
+      setBusyText(tt('defi.lp.busySigning'));
       const data = pancake.addLiquidityETHData(
         pool.token.address, tokenAmt, tokenMin, bnbMin, address, pancake.defaultDeadline()
       );
@@ -141,24 +142,24 @@ export default function LpTab() {
         from: address,
         to: pool.pair,
         amount: `${tokenAmount} ${pool.symbol} + ${formatTokenAmount(bnbNeeded)} BNB`,
-        status: '处理中',
+        status: tt('common.processing'),
       });
       const { txHash, receipt } = await signAndSendWithReceipt({
         to: PANCAKE_ROUTER, data, valueWei: bnbNeeded, from, mnemonic,
       });
       const ok = !receipt || receipt.status === '0x1';
       await walletStore.updateTransaction(record.id, {
-        status: ok ? '成功' : '失败',
+        status: ok ? tt('common.success') : tt('common.failed'),
         txHash,
-        error: ok ? undefined : '合约执行失败（revert）',
+        error: ok ? undefined : tt('defi.common.revert'),
       });
-      Alert.alert(ok ? '添加成功' : '添加失败', `交易哈希：\n${txHash}`);
+      Alert.alert(ok ? tt('defi.lp.addSuccess') : tt('defi.lp.addFailed'), tt('defi.common.txHashAlert', { hash: txHash }));
       setSelected(null);
       setTokenAmount('');
       await loadPools();
       refresh();
     } catch (err) {
-      Alert.alert('添加流动性失败', String(err.message ?? err));
+      Alert.alert(tt('defi.lp.addErrorTitle'), String(err.message ?? err));
     } finally {
       setBusy(false);
       setBusyText('');
@@ -170,8 +171,8 @@ export default function LpTab() {
       setBusy(true);
       const from = await assertSigningAccount(meta);
       const liquidity = parseTokenAmount(lpAmount, 18);
-      if (liquidity <= 0n) throw new Error('请输入要移除的 LP 数量');
-      if (liquidity > pool.myLp) throw new Error('超过持有的 LP 数量');
+      if (liquidity <= 0n) throw new Error(tt('defi.lp.needLpAmount'));
+      if (liquidity > pool.myLp) throw new Error(tt('defi.lp.lpExceeded'));
       // 按份额预估取回量，乘滑点作下限
       const tokenOut = (liquidity * pool.reserveToken) / pool.totalSupply;
       const bnbOut = (liquidity * pool.reserveBnb) / pool.totalSupply;
@@ -179,7 +180,7 @@ export default function LpTab() {
       const bnbMin = applySlippage(bnbOut, 0.5);
       const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
 
-      setBusyText('授权 LP Token…');
+      setBusyText(tt('defi.lp.busyApprovingLp'));
       await ensureApproval({
         tokenAddress: pool.pair,
         owner: address,
@@ -188,7 +189,7 @@ export default function LpTab() {
         mnemonic,
       });
 
-      setBusyText('签名广播中…');
+      setBusyText(tt('defi.lp.busySigning'));
       const data = pancake.removeLiquidityETHData(
         pool.token.address, liquidity, tokenMin, bnbMin, address, pancake.defaultDeadline()
       );
@@ -196,24 +197,24 @@ export default function LpTab() {
         from: address,
         to: pool.pair,
         amount: `${lpAmount} LP (${pool.symbol}/BNB)`,
-        status: '处理中',
+        status: tt('common.processing'),
       });
       const { txHash, receipt } = await signAndSendWithReceipt({
         to: PANCAKE_ROUTER, data, valueWei: 0n, from, mnemonic,
       });
       const ok = !receipt || receipt.status === '0x1';
       await walletStore.updateTransaction(record.id, {
-        status: ok ? '成功' : '失败',
+        status: ok ? tt('common.success') : tt('common.failed'),
         txHash,
-        error: ok ? undefined : '合约执行失败（revert）',
+        error: ok ? undefined : tt('defi.common.revert'),
       });
-      Alert.alert(ok ? '移除成功' : '移除失败', `交易哈希：\n${txHash}`);
+      Alert.alert(ok ? tt('defi.lp.removeSuccess') : tt('defi.lp.removeFailed'), tt('defi.common.txHashAlert', { hash: txHash }));
       setSelected(null);
       setLpAmount('');
       await loadPools();
       refresh();
     } catch (err) {
-      Alert.alert('移除流动性失败', String(err.message ?? err));
+      Alert.alert(tt('defi.lp.removeErrorTitle'), String(err.message ?? err));
     } finally {
       setBusy(false);
       setBusyText('');
@@ -222,10 +223,10 @@ export default function LpTab() {
 
   /** 添加数量 → 预计搭配的 BNB 文案 */
   function pairHintText(pool) {
-    if (!tokenAmount || Number(tokenAmount) <= 0) return '输入代币数量后自动计算';
+    if (!tokenAmount || Number(tokenAmount) <= 0) return tt('defi.lp.pairHintAuto');
     try {
       const amt = parseTokenAmount(tokenAmount, 18);
-      return ` ${formatTokenAmount((amt * pool.reserveBnb) / pool.reserveToken)} BNB`;
+      return tt('defi.lp.pairHintValue', { amount: formatTokenAmount((amt * pool.reserveBnb) / pool.reserveToken) });
     } catch {
       return ' —';
     }
@@ -248,13 +249,13 @@ export default function LpTab() {
           }
           ListHeaderComponent={
             <DefiHeader
-              title="LP 流动性"
-              subtitle="PancakeSwap V2 · BSC 链 · 添加 / 移除流动性"
+              title={tt('defi.lp.headerTitle')}
+              subtitle={tt('defi.lp.headerSubtitle')}
             />
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              {loading ? '加载池子中…' : '没有可用池子或加载失败，下拉重试'}
+              {loading ? tt('defi.lp.loadingPools') : tt('defi.lp.noPools')}
             </Text>
           }
           renderItem={({ item }) => (
@@ -271,19 +272,19 @@ export default function LpTab() {
                 <Text style={styles.poolName}>🥞 {item.symbol} / BNB</Text>
                 {item.myLp > 0n ? (
                   <Text style={styles.myShareTag}>
-                    我的份额 {Number(item.share) / 100}%
+                    {tt('defi.lp.myShare', { share: Number(item.share) / 100 })}
                   </Text>
                 ) : null}
               </View>
               <Text style={styles.poolReserve}>
-                池子：{formatTokenAmount(item.reserveBnb)} BNB + {formatTokenAmount(item.reserveToken)} {item.symbol}
+                {tt('defi.lp.poolReserve', { bnb: formatTokenAmount(item.reserveBnb), token: formatTokenAmount(item.reserveToken), symbol: item.symbol })}
               </Text>
               {item.myLp > 0n ? (
                 <Text style={styles.poolMine}>
-                  我的 LP：{formatTokenAmount(item.myLp, 18, 8)}
+                  {tt('defi.lp.myLp', { amount: formatTokenAmount(item.myLp, 18, 8) })}
                 </Text>
               ) : (
-                <Text style={styles.poolHint}>点击添加流动性（BNB + {item.symbol}）</Text>
+                <Text style={styles.poolHint}>{tt('defi.lp.poolHint', { symbol: item.symbol })}</Text>
               )}
             </TouchableOpacity>
           )}
@@ -301,33 +302,33 @@ export default function LpTab() {
                 <View style={{ width: 40 }} />
               </View>
 
-              <Text style={styles.sectionTitle}>添加流动性</Text>
+              <Text style={styles.sectionTitle}>{tt('defi.lp.addSection')}</Text>
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.input}
                   value={tokenAmount}
                   onChangeText={setTokenAmount}
-                  placeholder={`${selected.symbol} 数量`}
+                  placeholder={tt('defi.lp.tokenAmountPlaceholder', { symbol: selected.symbol })}
                   placeholderTextColor={t.secondaryText}
                   keyboardType="decimal-pad"
                 />
                 <Text style={styles.inputSuffix}>{selected.symbol}</Text>
               </View>
-              <Text style={styles.pairHint}>预计搭配：{pairHintText(selected)}</Text>
+              <Text style={styles.pairHint}>{tt('defi.lp.pairHint', { hint: pairHintText(selected) })}</Text>
               <Text style={styles.balanceText}>
-                代币余额：{formatTokenAmount(balances?.[selected.symbol] ?? 0n)}
+                {tt('defi.lp.tokenBalance', { amount: formatTokenAmount(balances?.[selected.symbol] ?? 0n) })}
               </Text>
               <TouchableOpacity
                 style={[styles.actionButton, (!tokenAmount || busy) && styles.disabled]}
                 disabled={!tokenAmount || busy}
                 onPress={() => handleAdd(selected)}
               >
-                <Text style={styles.actionText}>{busy ? busyText : '添加流动性'}</Text>
+                <Text style={styles.actionText}>{busy ? busyText : tt('defi.lp.addSection')}</Text>
               </TouchableOpacity>
 
               {selected.myLp > 0n ? (
                 <>
-                  <Text style={[styles.sectionTitle, { marginTop: 24 }]}>移除流动性</Text>
+                  <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{tt('defi.lp.removeSection')}</Text>
                   <View style={styles.percentRow}>
                     {[25, 50, 75, 100].map((p) => (
                       <TouchableOpacity
@@ -346,28 +347,27 @@ export default function LpTab() {
                       style={styles.input}
                       value={lpAmount}
                       onChangeText={setLpAmount}
-                      placeholder="LP 数量"
+                      placeholder={tt('defi.lp.lpAmountPlaceholder')}
                       placeholderTextColor={t.secondaryText}
                       keyboardType="decimal-pad"
                     />
                     <Text style={styles.inputSuffix}>LP</Text>
                   </View>
                   <Text style={styles.balanceText}>
-                    我的 LP：{formatTokenAmount(selected.myLp, 18, 8)}
+                    {tt('defi.lp.myLp', { amount: formatTokenAmount(selected.myLp, 18, 8) })}
                   </Text>
                   <TouchableOpacity
                     style={[styles.removeButton, (!lpAmount || busy) && styles.disabled]}
                     disabled={!lpAmount || busy}
                     onPress={() => handleRemove(selected)}
                   >
-                    <Text style={styles.actionText}>{busy ? busyText : '移除流动性'}</Text>
+                    <Text style={styles.actionText}>{busy ? busyText : tt('defi.lp.removeSection')}</Text>
                   </TouchableOpacity>
                 </>
               ) : null}
 
               <Text style={styles.tip}>
-                添加按当前池子比例自动搭配 BNB；移除按 LP 份额取回两种代币。
-                数量下限按 0.5% 滑点保护。首次操作需要一笔授权交易（approve）。
+                {tt('defi.lp.tip')}
               </Text>
             </ScrollView>
           </View>

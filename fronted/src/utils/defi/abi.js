@@ -4,12 +4,13 @@
 // 全部用 BigInt 处理数值，避免浮点精度问题。
 
 import { selector } from './keccak256';
+import { t as tt } from '@/i18n';
 
 /** 金额左填充到 32 字节（64 个 hex 字符） */
 export function encodeUint(value) {
   const v = BigInt(value);
-  if (v < 0n) throw new Error('encodeUint 不支持负数');
-  if (v >= 1n << 256n) throw new Error('数值超出 uint256');
+  if (v < 0n) throw new Error(tt('errors.abiNegativeUint'));
+  if (v >= 1n << 256n) throw new Error(tt('errors.abiUintOverflow'));
   return v.toString(16).padStart(64, '0');
 }
 
@@ -17,7 +18,7 @@ export function encodeUint(value) {
 export function encodeAddress(addr) {
   const s = String(addr).toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(s)) {
-    throw new Error(`地址格式不对：${addr}`);
+    throw new Error(tt('errors.abiInvalidAddress', { addr }));
   }
   return s.slice(2).padStart(64, '0');
 }
@@ -37,7 +38,7 @@ export function encodeBool(v) {
  */
 export function encodeCall(sig, types, args) {
   if (types.length !== args.length) {
-    throw new Error('参数数量与类型不匹配');
+    throw new Error(tt('errors.abiParamMismatch'));
   }
   let data = selector(sig);
   let tail = '';
@@ -59,7 +60,7 @@ export function encodeCall(sig, types, args) {
       data += encodeUint(dynamicOffset);
       tail = encodeUint(arg.length) + arg.map((a) => encodeAddress(a)).join('');
     } else {
-      throw new Error(`不支持的 ABI 类型：${type}`);
+      throw new Error(tt('errors.abiUnsupportedType', { type }));
     }
   }
   return data + tail;

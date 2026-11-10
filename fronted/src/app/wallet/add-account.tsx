@@ -6,6 +6,7 @@ import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
 import { useAuthStore } from '@/stores/auth';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /**
  * 新增账号：三种方式
@@ -39,7 +40,7 @@ export default function AddAccount() {
       setBusy(true);
       const mnemonic = await walletStore.getMnemonic();
       if (!mnemonic) {
-        Alert.alert('错误', '本地没有助记词钱包');
+        Alert.alert(tt('wallet.addAccount.error'), tt('wallet.addAccount.noRootMnemonic'));
         return;
       }
       const index = await nextIndex();
@@ -47,11 +48,11 @@ export default function AddAccount() {
       await walletStore.addAccount(mnemonic, index, address);
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
       await walletStore.switchAccount(index);
-      Alert.alert('新增成功', `账号 ${index + 1}：${address}`, [
-        { text: '好的', onPress: () => router.back() },
+      Alert.alert(tt('wallet.addAccount.addSuccessTitle'), tt('wallet.addAccount.addSuccessMsg', { index: index + 1, addr: address }), [
+        { text: tt('wallet.common.ok'), onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert('新增失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.addAccount.addFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -61,7 +62,7 @@ export default function AddAccount() {
   async function handleImportKey() {
     const key = privateKey.trim();
     if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
-      Alert.alert('错误', '私钥格式不对：应为 0x 开头的 66 位 hex（64 个十六进制字符）');
+      Alert.alert(tt('wallet.addAccount.error'), tt('wallet.addAccount.pkInvalid'));
       return;
     }
     try {
@@ -71,11 +72,11 @@ export default function AddAccount() {
       const index = await nextIndex();
       await walletStore.addAccount(null, index, address, 'private-key');
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
-      Alert.alert('新增成功', `账号 ${index + 1}：${address}`, [
-        { text: '好的', onPress: () => router.back() },
+      Alert.alert(tt('wallet.addAccount.addSuccessTitle'), tt('wallet.addAccount.addSuccessMsg', { index: index + 1, addr: address }), [
+        { text: tt('wallet.common.ok'), onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert('导入失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.addAccount.importFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -87,7 +88,7 @@ export default function AddAccount() {
       setBusy(true);
       setMnemonic(await Wallet.generateMnemonic(128));
     } catch (err) {
-      Alert.alert('生成失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.addAccount.generateFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -103,11 +104,11 @@ export default function AddAccount() {
       await walletStore.addAccount(null, index, address);
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
       await walletStore.switchAccount(index);
-      Alert.alert('新增成功', `账号 ${index + 1}：${address}`, [
-        { text: '好的', onPress: () => router.back() },
+      Alert.alert(tt('wallet.addAccount.addSuccessTitle'), tt('wallet.addAccount.addSuccessMsg', { index: index + 1, addr: address }), [
+        { text: tt('wallet.common.ok'), onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert('新增失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.addAccount.addFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -117,13 +118,13 @@ export default function AddAccount() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {!mode ? (
         <>
-          <Text style={styles.hint}>请选择新增账号的方式：</Text>
+          <Text style={styles.hint}>{tt('wallet.addAccount.chooseMethod')}</Text>
           {hasRootMnemonic ? (
             <TouchableOpacity style={styles.option} disabled={busy} onPress={() => setMode('derive')}>
               <Text style={styles.optionIcon}>🌿</Text>
               <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>派生新账号</Text>
-                <Text style={styles.optionDesc}>与现有账号共用助记词，按序号派生新地址</Text>
+                <Text style={styles.optionTitle}>{tt('wallet.addAccount.deriveTitle')}</Text>
+                <Text style={styles.optionDesc}>{tt('wallet.addAccount.deriveDesc')}</Text>
               </View>
               <Text style={styles.optionChevron}>›</Text>
             </TouchableOpacity>
@@ -131,42 +132,35 @@ export default function AddAccount() {
           <TouchableOpacity style={styles.option} disabled={busy} onPress={() => setMode('private-key')}>
             <Text style={styles.optionIcon}>🔑</Text>
             <View style={styles.optionInfo}>
-              <Text style={styles.optionTitle}>导入私钥</Text>
-              <Text style={styles.optionDesc}>使用已有的以太坊私钥创建账号（仅保存在本机）</Text>
+              <Text style={styles.optionTitle}>{tt('wallet.addAccount.importKeyTitle')}</Text>
+              <Text style={styles.optionDesc}>{tt('wallet.addAccount.importKeyDesc')}</Text>
             </View>
             <Text style={styles.optionChevron}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.option} disabled={busy} onPress={() => setMode('mnemonic')}>
             <Text style={styles.optionIcon}>📝</Text>
             <View style={styles.optionInfo}>
-              <Text style={styles.optionTitle}>创建助记词</Text>
-              <Text style={styles.optionDesc}>生成一套新助记词，创建独立账号</Text>
+              <Text style={styles.optionTitle}>{tt('wallet.addAccount.createMnemonicTitle')}</Text>
+              <Text style={styles.optionDesc}>{tt('wallet.addAccount.createMnemonicDesc')}</Text>
             </View>
             <Text style={styles.optionChevron}>›</Text>
           </TouchableOpacity>
         </>
       ) : mode === 'derive' ? (
         <>
-          <Text style={styles.hint}>
-            新账号与现有账号共用同一套助记词，{'\n'}
-            地址由 BIP44 派生路径的序号（index）区分，{'\n'}
-            恢复钱包时输入同一助记词即可找回全部账号。
-          </Text>
+          <Text style={styles.hint}>{tt('wallet.addAccount.deriveHint')}</Text>
           <TouchableOpacity style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={handleDerive}>
-            <Text style={styles.buttonText}>{busy ? '派生中…' : '派生新账号'}</Text>
+            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.deriving') : tt('wallet.addAccount.deriveButton')}</Text>
           </TouchableOpacity>
         </>
       ) : mode === 'private-key' ? (
         <>
-          <Text style={styles.warn}>
-            导入的私钥只保存在本机（iOS Keychain），{'\n'}
-            不要截图或发给任何人。
-          </Text>
+          <Text style={styles.warn}>{tt('wallet.addAccount.pkWarning')}</Text>
           <TextInput
             style={styles.input}
             value={privateKey}
             onChangeText={setPrivateKey}
-            placeholder="请输入 0x 开头的私钥"
+            placeholder={tt('wallet.addAccount.pkPlaceholder')}
             placeholderTextColor={t.secondaryText}
             autoCapitalize="none"
             autoCorrect={false}
@@ -178,22 +172,19 @@ export default function AddAccount() {
             disabled={busy}
             onPress={handleImportKey}
           >
-            <Text style={styles.buttonText}>{busy ? '导入中…' : '导入私钥，新增账号'}</Text>
+            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.importing') : tt('wallet.addAccount.importKeyButton')}</Text>
           </TouchableOpacity>
         </>
       ) : !mnemonic ? (
         <>
-          <Text style={styles.warn}>
-            将为这个账号生成一套全新的 12 词助记词，{'\n'}
-            与现有账号互相独立，请务必离线抄写保管。
-          </Text>
+          <Text style={styles.warn}>{tt('wallet.addAccount.mnemonicWarning')}</Text>
           <TouchableOpacity style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={handleGenerate}>
-            <Text style={styles.buttonText}>{busy ? '生成中…' : '生成助记词'}</Text>
+            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.generating') : tt('wallet.addAccount.generate')}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={styles.warn}>请把助记词抄写在纸上，不要截图或存网络相册：</Text>
+          <Text style={styles.warn}>{tt('wallet.addAccount.writeDown')}</Text>
           <View style={styles.mnemonicCard}>
             {mnemonic.split(' ').map((word, i) => (
               <View style={styles.wordChip} key={`${word}-${i}`}>
@@ -204,14 +195,14 @@ export default function AddAccount() {
           </View>
           <TouchableOpacity style={styles.checkRow} onPress={() => setConfirmed(!confirmed)}>
             <Text style={styles.checkbox}>{confirmed ? '☑' : '☐'}</Text>
-            <Text style={styles.checkText}>我已离线备份助记词，明白丢失后资产无法找回</Text>
+            <Text style={styles.checkText}>{tt('wallet.addAccount.backupConfirm')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.button, (!confirmed || busy) && styles.disabled]}
             disabled={!confirmed || busy}
             onPress={handleConfirmMnemonic}
           >
-            <Text style={styles.buttonText}>{busy ? '创建中…' : '我已备份，创建账号'}</Text>
+            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.creating') : tt('wallet.addAccount.createButton')}</Text>
           </TouchableOpacity>
         </>
       )}

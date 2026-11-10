@@ -6,6 +6,7 @@ import { Polyline, Svg, Line } from 'react-native-svg';
 
 import { getCoin, getMarketChart } from '@/utils/coingecko';
 import { useTheme, formatPercent } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /** 币种详情：走势图（带发光）+ 概览/更多数据双列网格 + 简介 */
 export default function CoinDetail() {
@@ -56,9 +57,9 @@ export default function CoinDetail() {
   if (error) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: '详情' }} />
+        <Stack.Screen options={{ title: tt('market.detail.title') }} />
         <View style={[styles.center, styles.errorBody]}>
-          <Text style={styles.dim}>加载失败</Text>
+          <Text style={styles.dim}>{tt('market.detail.loadFailed')}</Text>
         </View>
       </View>
     );
@@ -67,9 +68,9 @@ export default function CoinDetail() {
   if (!coin) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: '详情' }} />
+        <Stack.Screen options={{ title: tt('market.detail.title') }} />
         <View style={[styles.center, styles.errorBody]}>
-          <Text style={styles.dim}>加载中…</Text>
+          <Text style={styles.dim}>{tt('common.loading')}</Text>
         </View>
       </View>
     );
@@ -79,16 +80,16 @@ export default function CoinDetail() {
   const desc = coin.description?.en?.replace(/<[^>]+>/g, '') ?? '';
 
   const overviewStats = [
-    { title: '当前价格', value: `$${md.current_price.usd.toLocaleString('en-US')}`, pct: md.price_change_percentage_24h },
-    { title: '市值', value: `$${formatBig(md.market_cap.usd)}`, pct: md.market_cap_change_percentage_24h },
-    { title: '排名', value: `#${coin.market_cap_rank ?? '-'}` },
-    { title: '24h 成交量', value: `$${formatBig(md.total_volume.usd)}` },
+    { title: tt('market.detail.currentPrice'), value: `$${md.current_price.usd.toLocaleString('en-US')}`, pct: md.price_change_percentage_24h },
+    { title: tt('market.stats.marketCap'), value: `$${formatBig(md.market_cap.usd)}`, pct: md.market_cap_change_percentage_24h },
+    { title: tt('market.detail.rank'), value: `#${coin.market_cap_rank ?? '-'}` },
+    { title: tt('market.detail.volume24h'), value: `$${formatBig(md.total_volume.usd)}` },
   ];
   const additionalStats = [
-    { title: '24h 最高', value: `$${md.high_24h.usd}` },
-    { title: '24h 最低', value: `$${md.low_24h.usd}` },
-    { title: '流通量', value: formatBig(md.circulating_supply) },
-    { title: '总量', value: md.total_supply ? formatBig(md.total_supply) : '∞' },
+    { title: tt('market.detail.high24h'), value: `$${md.high_24h.usd}` },
+    { title: tt('market.detail.low24h'), value: `$${md.low_24h.usd}` },
+    { title: tt('market.detail.circulatingSupply'), value: formatBig(md.circulating_supply) },
+    { title: tt('market.detail.totalSupply'), value: md.total_supply ? formatBig(md.total_supply) : '∞' },
   ];
 
   // 图表下方日期行：起始 7 天前、结束今天
@@ -129,7 +130,7 @@ export default function CoinDetail() {
           </View>
         </View>
       ) : (
-        <Text style={styles.dim}>暂无走势数据</Text>
+        <Text style={styles.dim}>{tt('market.detail.noChartData')}</Text>
       )}
       {chart ? (
         <View style={styles.dateRow}>
@@ -139,7 +140,7 @@ export default function CoinDetail() {
       ) : null}
 
       {/* 概览 */}
-      <Text style={styles.sectionTitle}>概览</Text>
+      <Text style={styles.sectionTitle}>{tt('market.detail.overview')}</Text>
       <View style={styles.divider} />
       {desc ? (
         <>
@@ -147,7 +148,7 @@ export default function CoinDetail() {
             {desc}
           </Text>
           <TouchableOpacity onPress={() => setExpanded(!expanded)}>
-            <Text style={styles.readMore}>{expanded ? '收起' : '展开全文…'}</Text>
+            <Text style={styles.readMore}>{expanded ? tt('market.detail.collapse') : tt('market.detail.expand')}</Text>
           </TouchableOpacity>
         </>
       ) : null}
@@ -158,7 +159,7 @@ export default function CoinDetail() {
       </View>
 
       {/* 更多数据 */}
-      <Text style={[styles.sectionTitle, { marginTop: 30 }]}>更多数据</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 30 }]}>{tt('market.detail.moreData')}</Text>
       <View style={styles.divider} />
       <View style={styles.grid}>
         {additionalStats.map((s) => (

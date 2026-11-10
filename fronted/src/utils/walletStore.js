@@ -14,6 +14,8 @@
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { t as tt } from '@/i18n';
+
 const MNEMONIC_KEY = 'wallet.mnemonic';
 const WALLET_META_KEY = 'wallet.meta';
 const TX_HISTORY_KEY = 'wallet.transactions';
@@ -154,7 +156,7 @@ export function saveMeta(meta) {
 
 /** 账号显示名（无自定义名时用「账号 N」） */
 export function accountName(meta, index) {
-  return meta?.names?.[index] || `账号 ${index + 1}`;
+  return meta?.names?.[index] || tt('wallet.common.accountName', { index: index + 1 });
 }
 
 /**
@@ -166,7 +168,7 @@ export async function addAccount(mnemonic, index, address, type = 'mnemonic') {
   const meta = await getMeta();
   meta.accounts[index] = address;
   if (!meta.names) meta.names = [];
-  meta.names[index] = `账号 ${index + 1}`;
+  meta.names[index] = tt('wallet.common.accountName', { index: index + 1 });
   if (!meta.types) meta.types = [];
   meta.types[index] = type;
   meta.current = index;
@@ -312,7 +314,7 @@ export async function addTransaction(record) {
   const list = await getTransactions();
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    status: '处理中',
+    status: tt('common.processing'),
     chain: 'ethereum',
     chainSymbol: 'ETH',
     ...record,

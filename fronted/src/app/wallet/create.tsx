@@ -5,6 +5,7 @@ import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
 import { useAuthStore } from '@/stores/auth';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /** 创建钱包：生成助记词 -> 抄写确认 -> 保存并派生账号 0（导入私钥/新助记词在「新增账号」里） */
 export default function CreateWallet() {
@@ -20,7 +21,7 @@ export default function CreateWallet() {
       setBusy(true);
       setMnemonic(await Wallet.generateMnemonic(128));
     } catch (err) {
-      Alert.alert('生成失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.create.generateFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -35,11 +36,11 @@ export default function CreateWallet() {
       await walletStore.addAccount(mnemonic, 0, address);
       // 新钱包立即绑定给当前登录用户（退出登录时才能正确归档）
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
-      Alert.alert('创建成功', '账号已生成，可以开始使用了', [
-        { text: '好的', onPress: () => router.back() },
+      Alert.alert(tt('wallet.create.createSuccessTitle'), tt('wallet.create.createSuccessMsg'), [
+        { text: tt('wallet.common.ok'), onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert('创建失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.create.createFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -47,21 +48,18 @@ export default function CreateWallet() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>创建钱包</Text>
+      <Text style={styles.title}>{tt('wallet.create.title')}</Text>
 
       {!mnemonic ? (
         <>
-          <Text style={styles.warn}>
-            将为你生成 12 个单词的助记词。助记词等于资产所有权，{'\n'}
-            平台不提供找回服务，请务必离线抄写保管。
-          </Text>
+          <Text style={styles.warn}>{tt('wallet.create.warning')}</Text>
           <TouchableOpacity style={styles.button} disabled={busy} onPress={handleGenerate}>
-            <Text style={styles.buttonText}>{busy ? '生成中…' : '生成助记词'}</Text>
+            <Text style={styles.buttonText}>{busy ? tt('wallet.create.generating') : tt('wallet.create.generate')}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={styles.warn}>请把助记词抄写在纸上，不要截图或存网络相册：</Text>
+          <Text style={styles.warn}>{tt('wallet.create.writeDown')}</Text>
           <View style={styles.mnemonicCard}>
             {mnemonic.split(' ').map((word, i) => (
               <View style={styles.wordChip} key={`${word}-${i}`}>
@@ -76,7 +74,7 @@ export default function CreateWallet() {
             onPress={() => setConfirmed(!confirmed)}
           >
             <Text style={styles.checkbox}>{confirmed ? '☑' : '☐'}</Text>
-            <Text style={styles.checkText}>我已离线备份助记词，明白丢失后资产无法找回</Text>
+            <Text style={styles.checkText}>{tt('wallet.create.backupConfirm')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -84,7 +82,7 @@ export default function CreateWallet() {
             disabled={!confirmed || busy}
             onPress={handleConfirm}
           >
-            <Text style={styles.buttonText}>{busy ? '创建中…' : '我已备份，创建钱包'}</Text>
+            <Text style={styles.buttonText}>{busy ? tt('wallet.create.creating') : tt('wallet.create.createButton')}</Text>
           </TouchableOpacity>
         </>
       )}

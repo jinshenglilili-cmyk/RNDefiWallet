@@ -18,6 +18,7 @@ import {
   onSessionDelete,
   getAddress,
 } from '@/utils/walletConnect';
+import { t as tt } from '@/i18n';
 
 /**
  * 连接钱包（WalletConnect dApp 端）
@@ -48,13 +49,8 @@ export default function Wallet() {
   if (!isConfigured()) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={styles.warnTitle}>尚未配置 WalletConnect</Text>
-        <Text style={styles.warnText}>
-          1. 到 cloud.walletconnect.com 免费注册一个 Project ID{'\n'}
-          2. 写入 fronted/.env：{'\n'}
-          {'     '}EXPO_PUBLIC_WC_PROJECT_ID=你的ID{'\n'}
-          3. 重启 Metro（npm start -c）
-        </Text>
+        <Text style={styles.warnTitle}>{tt('wc.connect.notConfiguredTitle')}</Text>
+        <Text style={styles.warnText}>{tt('wc.connect.notConfiguredSteps')}</Text>
       </View>
     );
   }
@@ -68,10 +64,10 @@ export default function Wallet() {
       const session = await approval();
       setSession(session);
       setUri(null);
-      Alert.alert('连接成功', getAddress(session));
+      Alert.alert(tt('wc.connect.connectSuccess'), getAddress(session));
     } catch (err) {
       setUri(null);
-      Alert.alert('连接失败', String(err.message ?? err));
+      Alert.alert(tt('wc.connect.connectFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -82,9 +78,9 @@ export default function Wallet() {
     try {
       setBusy(true);
       const signature = await signMessage(session, 'Hello WalletConnect from RNDefiWallet');
-      Alert.alert('签名成功', signature);
+      Alert.alert(tt('wc.connect.signSuccess'), signature);
     } catch (err) {
-      Alert.alert('签名失败', String(err.message ?? err));
+      Alert.alert(tt('wc.connect.signFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -97,7 +93,7 @@ export default function Wallet() {
       await disconnect(session);
       setSession(null);
     } catch (err) {
-      Alert.alert('断开失败', String(err.message ?? err));
+      Alert.alert(tt('wc.connect.disconnectFailed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -110,7 +106,7 @@ export default function Wallet() {
         disabled={busy}
         onPress={() => setUri(null)}
       >
-        <Text style={[styles.buttonText, { color: '#666' }]}>取消</Text>
+        <Text style={[styles.buttonText, { color: '#666' }]}>{tt('common.cancel')}</Text>
       </TouchableOpacity>
     );
   }
@@ -122,7 +118,7 @@ export default function Wallet() {
       {session ? (
         <>
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>已连接钱包</Text>
+            <Text style={styles.cardLabel}>{tt('wc.connect.connectedWallet')}</Text>
             <Text style={styles.address}>{getAddress(session)}</Text>
           </View>
 
@@ -131,7 +127,9 @@ export default function Wallet() {
             disabled={busy}
             onPress={handleSign}
           >
-            <Text style={styles.buttonText}>{busy ? '等待钱包处理…' : '签名消息'}</Text>
+            <Text style={styles.buttonText}>
+              {busy ? tt('wc.connect.waitingWallet') : tt('wc.connect.signMessage')}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -139,7 +137,7 @@ export default function Wallet() {
             disabled={busy}
             onPress={handleDisconnect}
           >
-            <Text style={styles.buttonText}>断开连接</Text>
+            <Text style={styles.buttonText}>{tt('wc.connect.disconnect')}</Text>
           </TouchableOpacity>
         </>
       ) : uri ? (
@@ -147,21 +145,20 @@ export default function Wallet() {
           <View style={styles.qrCard}>
             <QRCode value={uri} size={220} />
           </View>
-          <Text style={styles.hint}>用 MetaMask / Trust 等 App 扫码连接</Text>
+          <Text style={styles.hint}>{tt('wc.connect.scanHint')}</Text>
           {cancelButton()}
         </>
       ) : (
         <>
-          <Text style={styles.hint}>
-            通过 WalletConnect 协议连接 MetaMask、Trust Wallet 等外部钱包，{'\n'}
-            无需导出私钥即可签名交易和消息。
-          </Text>
+          <Text style={styles.hint}>{tt('wc.connect.intro')}</Text>
           <TouchableOpacity
             style={[styles.button, busy && styles.buttonDisabled]}
             disabled={busy}
             onPress={handleConnect}
           >
-            <Text style={styles.buttonText}>{busy ? '正在建立连接…' : '连接外部钱包'}</Text>
+            <Text style={styles.buttonText}>
+              {busy ? tt('wc.connect.connecting') : tt('wc.connect.connectButton')}
+            </Text>
           </TouchableOpacity>
         </>
       )}

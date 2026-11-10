@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { KeyboardProvider, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { useSession } from '@/utils/ctx';
+import { t as tt } from '@/i18n';
 import Loading from '@/components/shared/Loading';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -55,18 +56,18 @@ export default function SignInForm(props) {
         {loading && <Loading />}
 
         <View style={styles.noticeWrapper}>
-          <Text style={styles.notice}>新用户请从这里开始 </Text>
+          <Text style={styles.notice}>{tt('auth.signin.newUserHere')} </Text>
           <MaterialCommunityIcons name={'arrow-right'} size={25} color={'#fff'} />
           <TouchableOpacity onPress={() => setSelected('signUp')}>
-            <Text style={styles.noticeLink}>会员注册</Text>
+            <Text style={styles.noticeLink}>{tt('auth.signin.goSignUp')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>会员登录</Text>
+          <Text style={styles.title}>{tt('auth.signin.heading')}</Text>
           <View style={styles.form}>
             <View style={styles.formGroup}>
-              <Text style={styles.label}>用户名 / 邮箱</Text>
+              <Text style={styles.label}>{tt('auth.signin.loginLabel')}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.input}
@@ -80,7 +81,7 @@ export default function SignInForm(props) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>密码</Text>
+              <Text style={styles.label}>{tt('auth.signin.passwordLabel')}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.input}
@@ -105,7 +106,7 @@ export default function SignInForm(props) {
 
           <TouchableWithoutFeedback disabled={!agreedPolicy} onPress={handleSubmit}>
             <View style={[styles.submitWrapper, agreedPolicy && styles.canSubmitWrapper]}>
-              <Text style={[styles.submit, agreedPolicy && styles.canSubmit]}>登录</Text>
+              <Text style={[styles.submit, agreedPolicy && styles.canSubmit]}>{tt('auth.signin.submit')}</Text>
             </View>
           </TouchableWithoutFeedback>
 
@@ -117,17 +118,17 @@ export default function SignInForm(props) {
                 color={agreedPolicy ? '#629BF0' : '#999'}
                 style={styles.privacyCheckbox}
               />
-              <Text style={styles.privacyText}>已阅读并同意</Text>
+              <Text style={styles.privacyText}>{tt('auth.agree.prefix')}</Text>
               <TouchableOpacity
                 onPress={() => WebBrowser.openBrowserAsync('https://clwy.cn/rules')}
               >
-                <Text style={styles.privacy}>会员使用条款</Text>
+                <Text style={styles.privacy}>{tt('auth.agree.terms')}</Text>
               </TouchableOpacity>
-              <Text style={styles.privacyText}>和</Text>
+              <Text style={styles.privacyText}>{tt('auth.agree.and')}</Text>
               <TouchableOpacity
                 onPress={() => WebBrowser.openBrowserAsync('https://clwy.cn/privacy')}
               >
-                <Text style={styles.privacy}>隐私政策</Text>
+                <Text style={styles.privacy}>{tt('auth.agree.privacy')}</Text>
               </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>

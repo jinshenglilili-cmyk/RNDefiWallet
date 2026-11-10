@@ -7,6 +7,7 @@ import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
 import { accountType, getPrivateKey } from '@/utils/walletStore';
 import * as walletConnect from '@/utils/walletConnect';
+import { t as tt } from '@/i18n';
 
 /**
  * 信息签名：对一段文本做 personal_sign 签名并展示结果
@@ -38,7 +39,7 @@ export default function SignMessage() {
   const hasAccounts = !!meta && meta.accounts.length > 0;
   const current = hasAccounts ? meta.accounts[meta.current] : '';
   const type = hasAccounts ? accountType(meta, meta.current) : 'mnemonic';
-  const typeLabel = type === 'private-key' ? '私钥账号' : '助记词账号';
+  const typeLabel = type === 'private-key' ? tt('wallet.sign.typePrivateKey') : tt('wallet.sign.typeMnemonic');
   const hasExternal = !!wcSession;
 
   /** 内嵌账号：生物识别 -> 本地签名 */
@@ -50,17 +51,17 @@ export default function SignMessage() {
       let signature;
       if (type === 'private-key') {
         const pk = await getPrivateKey(current);
-        if (!pk) throw new Error('本机没有该账号的私钥');
+        if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
         signature = await Wallet.signMessageWithPrivateKey(pk, message);
       } else {
         // 独立助记词账号优先用自己的助记词，派生账号用根助记词
         const m = await walletStore.getSigningMnemonic(current, meta.current);
-        if (!m) throw new Error('本地没有该账号的助记词');
+        if (!m) throw new Error(tt('wallet.sign.noMnemonic'));
         signature = await Wallet.signMessage('ethereum', m, message);
       }
       setResult({ address: current, message, signature, source: 'embedded' });
     } catch (err) {
-      Alert.alert('签名失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.sign.failed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -79,7 +80,7 @@ export default function SignMessage() {
         via: 'WalletConnect',
       });
     } catch (err) {
-      Alert.alert('签名失败', String(err.message ?? err));
+      Alert.alert(tt('wallet.sign.failed'), String(err.message ?? err));
     } finally {
       setBusy(false);
     }
@@ -87,7 +88,7 @@ export default function SignMessage() {
 
   async function handleSign() {
     if (!message.trim()) {
-      Alert.alert('提示', '请输入要签名的消息');
+      Alert.alert(tt('wallet.sign.hintTitle'), tt('wallet.sign.emptyMessage'));
       return;
     }
     if (source === 'external') {
@@ -106,7 +107,7 @@ export default function SignMessage() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* 签名账号选择：内嵌 / 外部 */}
-        <Text style={styles.sectionTitle}>签名方式</Text>
+        <Text style={styles.sectionTitle}>{tt('wallet.sign.method')}</Text>
         <View style={styles.sourceRow}>
           <TouchableOpacity
             style={[styles.sourceBtn, source === 'embedded' && styles.sourceBtnActive]}
@@ -120,11 +121,11 @@ export default function SignMessage() {
                 !hasAccounts && styles.sourceBtnDisabled,
               ]}
             >
-              内嵌账号{hasAccounts ? '' : '（无）'}
+              {tt('wallet.sign.embedded')}{hasAccounts ? '' : tt('wallet.sign.noneSuffix')}
             </Text>
             {hasAccounts && source === 'embedded' ? (
               <Text style={styles.sourceBtnSub}>
-                {typeLabel} · {shorten(current)} · 生物识别后签名
+                {typeLabel} · {shorten(current)} · {tt('wallet.sign.biometricHint')}
               </Text>
             ) : null}
           </TouchableOpacity>
@@ -140,7 +141,7 @@ export default function SignMessage() {
                 !hasExternal && source === 'external' && styles.sourceBtnDisabled,
               ]}
             >
-              外部钱包{hasExternal ? '' : '（未连接）'}
+              {tt('wallet.sign.external')}{hasExternal ? '' : tt('wallet.sign.notConnectedSuffix')}
             </Text>
             {hasExternal && source === 'external' ? (
               <Text style={styles.sourceBtnSub}>
@@ -151,18 +152,15 @@ export default function SignMessage() {
         </View>
 
         {source === 'external' && !hasExternal ? (
-          <Text style={styles.warn}>
-            尚未连接外部钱包。请到「钱包」→「连接 DApp (WalletConnect)」扫码连接
-            MetaMask 等 App 后再来签名。
-          </Text>
+          <Text style={styles.warn}>{tt('wallet.sign.noExternalWarning')}</Text>
         ) : null}
 
-        <Text style={styles.sectionTitle}>要签名的消息</Text>
+        <Text style={styles.sectionTitle}>{tt('wallet.sign.messageTitle')}</Text>
         <TextInput
           style={styles.input}
           value={message}
           onChangeText={setMessage}
-          placeholder="请输入要签名的消息"
+          placeholder={tt('wallet.sign.messagePlaceholder')}
           placeholderTextColor={t.secondaryText}
           multiline
         />
@@ -173,7 +171,7 @@ export default function SignMessage() {
           onPress={handleSign}
         >
           <Text style={styles.buttonText}>
-            {busy ? '签名中…' : source === 'external' ? '调用外部钱包签名' : '生物识别并签名'}
+            {busy ? tt('wallet.sign.signing') : source === 'external' ? tt('wallet.sign.signExternal') : tt('wallet.sign.signBiometric')}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -183,19 +181,19 @@ export default function SignMessage() {
         <View style={styles.mask}>
           <View style={styles.dialog}>
             <Text style={styles.dialogIcon}>✍️</Text>
-            <Text style={styles.dialogTitle}>签名成功</Text>
-            <Text style={styles.sectionLabel}>签名账号</Text>
+            <Text style={styles.dialogTitle}>{tt('wallet.sign.successTitle')}</Text>
+            <Text style={styles.sectionLabel}>{tt('wallet.sign.accountLabel')}</Text>
             <Text style={styles.monoCard}>
-              {result?.address} {result?.via ? `（经 ${result.via}）` : ''}
+              {result?.address} {result?.via ? tt('wallet.sign.viaSuffix', { via: result.via }) : ''}
             </Text>
-            <Text style={styles.sectionLabel}>消息</Text>
+            <Text style={styles.sectionLabel}>{tt('wallet.sign.messageLabel')}</Text>
             <Text style={styles.monoCard}>{result?.message}</Text>
-            <Text style={styles.sectionLabel}>签名结果</Text>
+            <Text style={styles.sectionLabel}>{tt('wallet.sign.resultLabel')}</Text>
             <ScrollView style={styles.sigScroll}>
               <Text style={styles.monoCard}>{result?.signature}</Text>
             </ScrollView>
             <TouchableOpacity style={styles.closeBtn} onPress={() => setResult(null)}>
-              <Text style={styles.closeText}>关闭</Text>
+              <Text style={styles.closeText}>{tt('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -211,19 +209,19 @@ async function requireBiometric() {
     const enrolled = await LocalAuthentication.isEnrolledAsync();
     if (!hasHardware || !enrolled) {
       Alert.alert(
-        '未设置生物识别',
-        '本机未录入 Face ID / Touch ID，无法验证身份，请先到系统设置录入。'
+        tt('wallet.sign.notEnrolledTitle'),
+        tt('wallet.sign.notEnrolledMsg')
       );
       return false;
 
     }
     const res = await LocalAuthentication.authenticateAsync({
-      promptMessage: '验证身份以签名消息',
-      cancelLabel: '取消',
+      promptMessage: tt('wallet.sign.promptMessage'),
+      cancelLabel: tt('common.cancel'),
     });
     return !!res.success;
   } catch (err) {
-    Alert.alert('验证失败', String(err.message ?? err));
+    Alert.alert(tt('wallet.sign.verifyFailed'), String(err.message ?? err));
     return false;
   }
 }

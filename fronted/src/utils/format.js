@@ -1,5 +1,7 @@
 // 金额与 hex 工具（全部用 BigInt，避免浮点精度问题）
 
+import { t as tt } from '@/i18n';
+
 /** ETH 单位：1 ETH = 10^18 wei */
 const WEI_PER_ETH = 10n ** 18n;
 
@@ -10,11 +12,11 @@ const WEI_PER_ETH = 10n ** 18n;
 export function parseEther(eth) {
   const s = String(eth).trim();
   if (!/^\d+(\.\d+)?$/.test(s)) {
-    throw new Error(`金额格式不对：${eth}`);
+    throw new Error(tt('errors.amountFormat', { text: eth }));
   }
   const [whole, frac = ''] = s.split('.');
   if (frac.length > 18) {
-    throw new Error('小数位最多 18 位');
+    throw new Error(tt('errors.amountDecimals'));
   }
   return BigInt(whole || '0') * WEI_PER_ETH + BigInt(frac.padEnd(18, '0') || '0');
 }

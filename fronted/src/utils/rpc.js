@@ -3,6 +3,8 @@
 // 使用公共节点（无需 API Key），负责转账/浏览器 dApp 需要的链上读写：
 // 余额、nonce、gas、广播、eth_call 代理。
 
+import { t as tt } from '@/i18n';
+
 const RPC_URL = 'https://ethereum-rpc.publicnode.com';
 export const CHAIN_ID_HEX = '0x1'; // 以太坊主网
 
@@ -20,11 +22,11 @@ export async function rpc(method, params = []) {
     body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params }),
   });
   if (!response.ok) {
-    throw new Error(`RPC 请求失败：HTTP ${response.status}`);
+    throw new Error(tt('wallet.rpc.requestFailed', { status: response.status }));
   }
   const { result, error } = await response.json();
   if (error) {
-    throw new Error(`RPC ${method} 出错：${error.message}`);
+    throw new Error(tt('wallet.rpc.methodError', { method, message: error.message }));
   }
   return result;
 }

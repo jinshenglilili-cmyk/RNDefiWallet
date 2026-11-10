@@ -1,6 +1,7 @@
 import { buildUrl } from '@/utils';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { t as tt } from '@/i18n';
 
 /**
  * 基础请求函数
@@ -61,10 +62,10 @@ const request = async (url, { method = 'GET', params, body } = {}) => {
       return;
     }
 
-    const { message, errors } = await response.json().catch(() => null);
-    const error = new Error(message);
+    const data = await response.json().catch(() => null);
+    const error = new Error(data?.message ?? tt('errors.requestFailed'));
     error.status = response.status;
-    error.errors = errors;
+    error.errors = data?.errors;
     throw error;
   }
 

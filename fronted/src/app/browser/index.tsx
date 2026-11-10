@@ -11,13 +11,14 @@ import {
 import { useRouter } from 'expo-router';
 
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
-/** 常用 DApp 快捷入口 */
+/** 常用 DApp 快捷入口（desc 存 i18n key，渲染时取词） */
 const DAPPS = [
-  { name: 'WalletConnect Test', url: 'https://react-app.walletconnect.com', desc: 'WC 官方测试' },
-  { name: 'Ethereum Test Dapp', url: 'https://metamask.github.io/test-dapp/', desc: 'MetaMask 测试' },
-  { name: 'Uniswap', url: 'https://app.uniswap.org', desc: '去中心化交易' },
-  { name: 'Etherscan', url: 'https://etherscan.io', desc: '区块浏览器' },
+  { name: 'WalletConnect Test', url: 'https://react-app.walletconnect.com', descKey: 'browser.dapps.walletconnectTest' },
+  { name: 'Ethereum Test Dapp', url: 'https://metamask.github.io/test-dapp/', descKey: 'browser.dapps.metamaskTest' },
+  { name: 'Uniswap', url: 'https://app.uniswap.org', descKey: 'browser.dapps.uniswap' },
+  { name: 'Etherscan', url: 'https://etherscan.io', descKey: 'browser.dapps.etherscan' },
 ];
 
 /** DApp 浏览器首页：地址栏 + 快捷入口列表 */
@@ -38,7 +39,7 @@ export default function Browser() {
       if (!hostname.includes('.')) throw new Error('bad host');
       router.push({ pathname: '/browser/viewer', params: { url: target } });
     } catch {
-      Alert.alert('网址不对', '请输入合法的网址');
+      Alert.alert(tt('browser.invalidUrlTitle'), tt('browser.invalidUrlMessage'));
     }
   }
 
@@ -50,7 +51,7 @@ export default function Browser() {
           style={styles.urlInput}
           value={url}
           onChangeText={setUrl}
-          placeholder="输入网址…"
+          placeholder={tt('browser.urlPlaceholder')}
           placeholderTextColor={t.secondaryText}
           autoCapitalize="none"
           autoCorrect={false}
@@ -59,12 +60,12 @@ export default function Browser() {
           returnKeyType="go"
         />
         <TouchableOpacity style={styles.goButton} onPress={() => open(url)}>
-          <Text style={styles.goText}>前往</Text>
+          <Text style={styles.goText}>{tt('browser.go')}</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        <Text style={styles.sectionTitle}>快捷入口</Text>
+        <Text style={styles.sectionTitle}>{tt('browser.quickLinks')}</Text>
         {DAPPS.map((dapp) => (
           <TouchableOpacity
             key={dapp.url}
@@ -77,17 +78,13 @@ export default function Browser() {
             </View>
             <View style={styles.cellInfo}>
               <Text style={styles.cellName}>{dapp.name}</Text>
-              <Text style={styles.cellDesc}>{dapp.desc}</Text>
+              <Text style={styles.cellDesc}>{tt(dapp.descKey)}</Text>
             </View>
             <Text style={styles.cellArrow}>›</Text>
           </TouchableOpacity>
         ))}
 
-        <Text style={styles.note}>
-          浏览器内置 EIP-1193 Provider：dApp 可以请求你的账号、{'\n'}
-          请求签名（会弹审批窗），签名由原生钱包模块完成，{'\n'}
-          私钥不进入网页。
-        </Text>
+        <Text style={styles.note}>{tt('browser.eip1193Note')}</Text>
       </ScrollView>
     </View>
   );

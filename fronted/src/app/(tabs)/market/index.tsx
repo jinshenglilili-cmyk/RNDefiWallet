@@ -24,6 +24,7 @@ import { Animated } from 'react-native';
 
 import { getMarkets, getGlobal } from '@/utils/coingecko';
 import * as portfolioStore from '@/utils/portfolioStore';
+import { t as tt } from '@/i18n';
 import { useTheme, formatPercent } from '@/utils/theme';
 import { formatBig, formatCurrency, formatCurrency6 } from '@/utils/format';
 
@@ -187,10 +188,10 @@ export default function Market() {
   const portfolioChange = previousValue > 0 ? ((portfolioValue - previousValue) / previousValue) * 100 : 0;
 
   const statistics = [
-    { title: '市值', value: formatBig(globalData?.totalMarketCap ?? 0), change: globalData?.marketCapChange24h },
-    { title: '24h量', value: formatBig(globalData?.totalVolume ?? 0), change: null },
-    { title: 'BTC占比', value: `${(globalData?.btcDominance ?? 0).toFixed(2)}%`, change: null },
-    { title: '持仓价值', value: formatCurrency(portfolioValue), change: portfolioChange },
+    { title: tt('market.stats.marketCap'), value: formatBig(globalData?.totalMarketCap ?? 0), change: globalData?.marketCapChange24h },
+    { title: tt('market.stats.volume24h'), value: formatBig(globalData?.totalVolume ?? 0), change: null },
+    { title: tt('market.stats.btcDominance'), value: `${(globalData?.btcDominance ?? 0).toFixed(2)}%`, change: null },
+    { title: tt('market.stats.portfolioValue'), value: formatCurrency(portfolioValue), change: portfolioChange },
   ];
 
   // ---------- 交互 ----------
@@ -247,7 +248,7 @@ export default function Market() {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={styles.dim}>行情加载中…</Text>
+        <Text style={styles.dim}>{tt('market.list.loading')}</Text>
       </View>
     );
   }
@@ -255,9 +256,9 @@ export default function Market() {
   if (error) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={styles.dim}>行情加载失败（检查网络/代理）</Text>
+        <Text style={styles.dim}>{tt('market.list.loadFailed')}</Text>
         <TouchableOpacity onPress={() => { setLoading(true); loadData(); }} style={styles.retry}>
-          <Text style={styles.retryText}>重新加载</Text>
+          <Text style={styles.retryText}>{tt('common.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -327,7 +328,7 @@ export default function Market() {
         >
           <Text style={styles.circleIcon}>{showPortfolio ? '＋' : 'ⓘ'}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{showPortfolio ? '持仓 Portfolio' : '行情 Live Prices'}</Text>
+        <Text style={styles.title}>{showPortfolio ? tt('market.tab.portfolio') : tt('market.tab.prices')}</Text>
         <TouchableOpacity style={styles.circleButton} activeOpacity={0.7} onPress={togglePortfolio}>
           <Text
             style={[
@@ -360,7 +361,7 @@ export default function Market() {
             style={styles.searchInput}
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="按名称或符号搜索…"
+            placeholder={tt('market.search.placeholder')}
             placeholderTextColor={t.secondaryText}
             autoCapitalize="none"
             autoCorrect={false}
@@ -376,17 +377,17 @@ export default function Market() {
       {/* 排序表头 */}
       <View style={styles.columnTitles}>
         <TouchableOpacity style={styles.colCoin} onPress={() => toggleSort('rank')}>
-          <Text style={styles.columnTitle}>币种</Text>
+          <Text style={styles.columnTitle}>{tt('market.col.coin')}</Text>
           <SortArrow option="rank" />
         </TouchableOpacity>
         {showPortfolio ? (
           <TouchableOpacity style={styles.colHoldings} onPress={() => toggleSort('holdings')}>
-            <Text style={styles.columnTitle}>持仓</Text>
+            <Text style={styles.columnTitle}>{tt('market.col.holdings')}</Text>
             <SortArrow option="holdings" />
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity style={[styles.colPrice, { width: priceColWidth }]} onPress={() => toggleSort('price')}>
-          <Text style={styles.columnTitle}>价格</Text>
+          <Text style={styles.columnTitle}>{tt('market.col.price')}</Text>
           <SortArrow option="price" />
         </TouchableOpacity>
         <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
@@ -398,7 +399,7 @@ export default function Market() {
       {showPortfolio && portfolioList.length === 0 && !debounced ? (
         <View style={styles.emptyPortfolio}>
           <Text style={styles.emptyPortfolioText}>
-            你还没有添加任何持仓。{'\n'}点击左上角 ＋ 按钮开始！🧐
+            {tt('market.empty.hint')}
           </Text>
         </View>
       ) : (
@@ -417,13 +418,13 @@ export default function Market() {
             <TouchableOpacity onPress={() => setSheetVisible(false)}>
               <Text style={styles.sheetClose}>✕</Text>
             </TouchableOpacity>
-            <Text style={styles.sheetTitle}>编辑持仓</Text>
+            <Text style={styles.sheetTitle}>{tt('market.sheet.title')}</Text>
             <View style={styles.sheetRight}>
               {justSaved ? (
                 <Text style={styles.savedCheck}>✓</Text>
               ) : canSave ? (
                 <TouchableOpacity onPress={saveHolding}>
-                  <Text style={styles.saveText}>保存</Text>
+                  <Text style={styles.saveText}>{tt('market.sheet.save')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -440,7 +441,7 @@ export default function Market() {
                   setSheetSearch(v);
                   if (v === '') setSelectedCoin(null); // 清空搜索时取消选中
                 }}
-                placeholder="搜索要添加的币…"
+                placeholder={tt('market.sheet.searchPlaceholder')}
                 placeholderTextColor={t.secondaryText}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -471,7 +472,7 @@ export default function Market() {
               );
             })}
             {sheetCoins.length === 0 && (
-              <Text style={styles.dim}>无匹配的币</Text>
+              <Text style={styles.dim}>{tt('market.sheet.noMatch')}</Text>
             )}
           </ScrollView>
 
@@ -479,26 +480,26 @@ export default function Market() {
           {selectedCoin ? (
             <View style={styles.editCard}>
               <Text style={styles.editPrice}>
-                {selectedCoin.name} 现价 {formatCurrency6(selectedCoin.current_price)}
+                {tt('market.sheet.currentPrice', { name: selectedCoin.name, price: formatCurrency6(selectedCoin.current_price) })}
               </Text>
-              <Text style={styles.editLabel}>持仓数量</Text>
+              <Text style={styles.editLabel}>{tt('market.sheet.quantityLabel')}</Text>
               <TextInput
                 style={styles.editInput}
                 value={quantityText}
                 onChangeText={setQuantityText}
-                placeholder="如：1.4"
+                placeholder={tt('market.sheet.quantityPlaceholder')}
                 placeholderTextColor={t.secondaryText}
                 keyboardType="decimal-pad"
               />
-              <Text style={styles.editLabel}>当前价值</Text>
+              <Text style={styles.editLabel}>{tt('market.sheet.valueLabel')}</Text>
               <Text style={styles.editValue}>
                 {Number.isNaN(parsedQty) ? '$0.00' : formatCurrency(parsedQty * selectedCoin.current_price)}
               </Text>
-              <Text style={styles.editHint}>数量填 0 并保存即从持仓中移除</Text>
+              <Text style={styles.editHint}>{tt('market.sheet.removeHint')}</Text>
             </View>
           ) : (
             <Text style={styles.pickHint}>
-              {sheetSearch ? '点选一个币来添加持仓' : '已持仓的币显示在上方，搜索可添加新币'}
+              {sheetSearch ? tt('market.sheet.pickHintToAdd') : tt('market.sheet.pickHintSearch')}
             </Text>
           )}
         </View>

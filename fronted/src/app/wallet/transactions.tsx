@@ -19,17 +19,23 @@ import * as walletStore from '@/utils/walletStore';
 import { getBalance, getNonce, getGasPrice, estimateGas, sendRawTransaction } from '@/utils/rpc';
 import { parseEther, formatEther } from '@/utils/format';
 import { useTheme } from '@/utils/theme';
+import { t as tt } from '@/i18n';
 
 /** 区块链选择（对齐参考项目 ChainType.allCases 7 条链） */
 const CHAINS = [
-  { key: 'bitcoin', symbol: 'BTC', name: '比特币' },
-  { key: 'ethereum', symbol: 'ETH', name: '以太坊' },
-  { key: 'solana', symbol: 'SOL', name: 'Solana' },
-  { key: 'tron', symbol: 'TRX', name: '波场' },
-  { key: 'bsc', symbol: 'BNB', name: 'BNB 链' },
-  { key: 'avalanche', symbol: 'AVAX', name: 'Avalanche' },
-  { key: 'polygon', symbol: 'MATIC', name: 'Polygon' },
+  { key: 'bitcoin', symbol: 'BTC' },
+  { key: 'ethereum', symbol: 'ETH' },
+  { key: 'solana', symbol: 'SOL' },
+  { key: 'tron', symbol: 'TRX' },
+  { key: 'bsc', symbol: 'BNB' },
+  { key: 'avalanche', symbol: 'AVAX' },
+  { key: 'polygon', symbol: 'MATIC' },
 ];
+
+/** 区块链名称（走 i18n，模块级常量不能在 import 时取词） */
+function chainName(key) {
+  return tt(`wallet.chains.${key}`);
+}
 
 /** 地址中间截断 */
 function shorten(addr, head = 8, tail = 8) {
@@ -108,18 +114,18 @@ export default function Transactions() {
   // ---------- 提交转账 ----------
   function handleSubmit() {
     if (!/^0x[0-9a-fA-F]{40}$/.test(to.trim())) {
-      Alert.alert('错误', '接收地址格式不对：应为 0x 开头的 42 位十六进制');
+      Alert.alert(tt('wallet.transactions.error'), tt('wallet.transactions.toInvalid'));
       return;
     }
     const valueWei = parseEther(amount);
     if (valueWei <= 0n) {
-      Alert.alert('错误', '转账金额需要大于 0');
+      Alert.alert(tt('wallet.transactions.error'), tt('wallet.transactions.amountInvalid'));
       return;
     }
     if (chainKey === 'ethereum') {
-      Alert.alert('确认转账', `转出 ${amount} ETH 到\n${to.trim()}`, [
-        { text: '取消', style: 'cancel' },
-        { text: '确认', style: 'destructive', onPress: () => sendRealEth(valueWei) },
+      Alert.alert(tt('wallet.transactions.confirmTitle'), tt('wallet.transactions.confirmMsg', { amount, addr: to.trim() }), [
+        { text: tt('common.cancel'), style: 'cancel' },
+        { text: tt('common.confirm'), style: 'destructive', onPress: () => sendRealEth(valueWei) },
       ]);
     } else {
       simulateTransfer();
@@ -139,7 +145,7 @@ export default function Transactions() {
         amount: formatEther(valueWei),
         chain: 'ethereum',
         chainSymbol: 'ETH',
-        status: '处理中',
+        status: tt('common.processing'),
       });
       setSheetVisible(false);
       setList(await walletStore.getTransactions());
@@ -159,15 +165,15 @@ export default function Transactions() {
         value: valueWei.toString(10),
       });
       const txHash = await sendRawTransaction(rawTx);
-      await walletStore.updateTransaction(record.id, { status: '成功', txHash });
+      await walletStore.updateTransaction(record.id, { status: tt('common.success'), txHash });
     } catch (err) {
       if (record) {
         await walletStore.updateTransaction(record.id, {
-          status: '失败',
+          status: tt('common.failed'),
           error: String(err.message ?? err),
         });
       } else {
-        Alert.alert('转账失败', String(err.message ?? err));
+        Alert.alert(tt('wallet.transactions.sendFailed'), String(err.message ?? err));
       }
     } finally {
       setBusy(false);
@@ -184,16 +190,16 @@ export default function Transactions() {
       amount,
       chain: chainKey,
       chainSymbol: chain.symbol,
-      status: '处理中',
+      status: tt('common.processing'),
     });
     setSheetVisible(false);
     setList(await walletStore.getTransactions());
     const delay = 3000 + Math.random() * 7000;
     setTimeout(async () => {
       if (Math.random() < 0.9) {
-        await walletStore.updateTransaction(record.id, { status: '成功', txHash: mockTxHash() });
+        await walletStore.updateTransaction(record.id, { status: tt('common.success'), txHash: mockTxHash() });
       } else {
-        await walletStore.updateTransaction(record.id, { status: '失败', error: '模拟：交易被拒绝' });
+        await walletStore.updateTransaction(record.id, { status: tt('common.failed'), error: tt('wallet.transactions.simulateRejected') });
       }
       setList(await walletStore.getTransactions());
     }, delay);
@@ -201,7 +207,7 @@ export default function Transactions() {
 
   // ---------- 渲染 ----------
   function StatusTag({ status }) {
-    const bg = status === '成功' ? t.green : status === '失败' ? t.red : '#FF9500';
+    const bg = status === tt('common.success') ? t.green : status === tt('common.failed') ? t.red : '#FF9500';
     return (
       <View style={[styles.statusTag, { backgroundColor: bg }]}>
         <Text style={styles.statusText}>{status}</Text>
@@ -224,7 +230,7 @@ export default function Transactions() {
             setList(await walletStore.getTransactions());
           }}
         >
-          <Text style={styles.deleteText}>删除</Text>
+          <Text style={styles.deleteText}>{tt('common.delete')}</Text>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -243,14 +249,14 @@ export default function Transactions() {
               disabled={noAccount || busy}
               onPress={openSheet}
             >
-              <Text style={styles.newButtonText}>＋ 新建转账</Text>
+              <Text style={styles.newButtonText}>＋ {tt('wallet.transactions.newTransfer')}</Text>
             </TouchableOpacity>
           ),
         }}
       />
 
       {noAccount ? (
-        <Text style={styles.warnBanner}>请先在「钱包」页面创建或导入账号</Text>
+        <Text style={styles.warnBanner}>{tt('wallet.transactions.needAccountBanner')}</Text>
       ) : null}
 
       <FlatList
@@ -267,25 +273,25 @@ export default function Transactions() {
                 <Text style={styles.amount}>
                   -{item.amount} {item.chainSymbol ?? 'ETH'}
                 </Text>
-                <StatusTag status={item.status ?? '成功'} />
+                <StatusTag status={item.status ?? tt('common.success')} />
               </View>
               <Text style={styles.addrLine} numberOfLines={1}>
-                <Text style={styles.addrLabel}>发件地址：</Text>
+                <Text style={styles.addrLabel}>{tt('wallet.transactions.fromLabel')}</Text>
                 <Text style={styles.addrValue}>{shorten(item.from)}</Text>
               </Text>
               <Text style={styles.addrLine} numberOfLines={1}>
-                <Text style={styles.addrLabel}>接收地址：</Text>
+                <Text style={styles.addrLabel}>{tt('wallet.transactions.toLabel')}</Text>
                 <Text style={styles.addrValue}>{shorten(item.to)}</Text>
               </Text>
               {item.txHash ? (
                 <Text style={styles.addrLine} numberOfLines={1}>
-                  <Text style={styles.addrLabel}>交易哈希：</Text>
+                  <Text style={styles.addrLabel}>{tt('wallet.transactions.txHashLabel')}</Text>
                   <Text style={styles.addrValue}>{shorten(item.txHash, 10, 10)}</Text>
                 </Text>
               ) : null}
               <View style={styles.rowBottom}>
                 <Text style={styles.chain}>
-                  {(CHAINS.find((c) => c.key === item.chain)?.name ?? '以太坊')}
+                  {chainName(item.chain ?? 'ethereum')}
                 </Text>
                 <Text style={styles.time}>
                   {new Date(item.time).toLocaleString('zh-CN', {
@@ -302,8 +308,8 @@ export default function Transactions() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>⇄</Text>
-            <Text style={styles.emptyTitle}>暂无转账记录</Text>
-            <Text style={styles.emptyHint}>点击右上角「新建转账」发起第一笔</Text>
+            <Text style={styles.emptyTitle}>{tt('wallet.transactions.emptyTitle')}</Text>
+            <Text style={styles.emptyHint}>{tt('wallet.transactions.emptyHint')}</Text>
           </View>
         }
       />
@@ -315,42 +321,42 @@ export default function Transactions() {
             <TouchableOpacity onPress={() => setSheetVisible(false)}>
               <Text style={styles.sheetClose}>✕</Text>
             </TouchableOpacity>
-            <Text style={styles.sheetTitle}>新建转账</Text>
+            <Text style={styles.sheetTitle}>{tt('wallet.transactions.sheetTitle')}</Text>
             <View style={{ width: 40 }} />
           </View>
 
           {/* 发起账户（只读） */}
-          <Text style={styles.sectionTitle}>发起账户</Text>
+          <Text style={styles.sectionTitle}>{tt('wallet.transactions.fromAccount')}</Text>
           <View style={styles.accountCard}>
             <Text style={styles.accountName}>
-              {meta ? `账号 ${meta.current + 1}` : '-'}
+              {meta ? tt('wallet.common.accountName', { index: meta.current + 1 }) : '-'}
             </Text>
             <Text style={styles.accountAddr} numberOfLines={1}>
               ETH {shorten(from)}
             </Text>
-            {balance !== null ? <Text style={styles.accountBalance}>余额 {balance} ETH</Text> : null}
+            {balance !== null ? <Text style={styles.accountBalance}>{tt('wallet.transactions.balanceLine', { balance })}</Text> : null}
           </View>
 
           {/* 接收地址 */}
-          <Text style={styles.sectionTitle}>接收地址</Text>
+          <Text style={styles.sectionTitle}>{tt('wallet.transactions.toAddress')}</Text>
           <TextInput
             style={styles.input}
             value={to}
             onChangeText={setTo}
-            placeholder="请输入接收地址"
+            placeholder={tt('wallet.transactions.toPlaceholder')}
             placeholderTextColor={t.secondaryText}
             autoCapitalize="none"
             autoCorrect={false}
           />
 
           {/* 转账金额 */}
-          <Text style={styles.sectionTitle}>转账金额 ({chain.symbol})</Text>
+          <Text style={styles.sectionTitle}>{tt('wallet.transactions.amountLabel', { symbol: chain.symbol })}</Text>
           <View style={styles.amountRow}>
             <TextInput
               style={[styles.input, { flex: 1, marginBottom: 0 }]}
               value={amount}
               onChangeText={setAmount}
-              placeholder="如：0.01"
+              placeholder={tt('wallet.transactions.amountPlaceholder')}
               placeholderTextColor={t.secondaryText}
               keyboardType="decimal-pad"
             />
@@ -358,12 +364,12 @@ export default function Transactions() {
               style={styles.allButton}
               onPress={() => balance && setAmount(String(balance))}
             >
-              <Text style={styles.allButtonText}>全部</Text>
+              <Text style={styles.allButtonText}>{tt('wallet.transactions.all')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* 区块链横向选择 */}
-          <Text style={styles.sectionTitle}>区块链</Text>
+          <Text style={styles.sectionTitle}>{tt('wallet.transactions.blockchain')}</Text>
           <View style={styles.chainRow}>
             {CHAINS.map((c) => {
               const active = c.key === chainKey;
@@ -382,7 +388,7 @@ export default function Transactions() {
           </View>
           {chainKey !== 'ethereum' ? (
             <Text style={styles.chainHint}>
-              {chain.name}暂未接入签名通道，将按参考项目方式模拟确认（3-10 秒后出结果）。
+              {tt('wallet.transactions.chainHint', { name: chainName(chainKey) })}
             </Text>
           ) : null}
 
@@ -391,7 +397,7 @@ export default function Transactions() {
             disabled={!to.trim() || !amount || busy}
             onPress={handleSubmit}
           >
-            <Text style={styles.submitText}>{busy ? '签名广播中…' : '发起转账'}</Text>
+            <Text style={styles.submitText}>{busy ? tt('wallet.transactions.signing') : tt('wallet.transactions.submit')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>

@@ -9,6 +9,8 @@
 import '@walletconnect/react-native-compat';
 import { SignClient } from '@walletconnect/sign-client';
 
+import { t as tt } from '@/i18n';
+
 const PROJECT_ID = process.env.EXPO_PUBLIC_WC_PROJECT_ID || '';
 const RELAY_URL = 'wss://relay.walletconnect.com';
 
@@ -20,9 +22,7 @@ let clientPromise = null;
 /** 获取（或初始化）全局唯一的 SignClient 实例 */
 export function getClient() {
   if (!PROJECT_ID) {
-    throw new Error(
-      '缺少 WalletConnect Project ID，请在 fronted/.env 中配置 EXPO_PUBLIC_WC_PROJECT_ID'
-    );
+    throw new Error(tt('wc.missingProjectId'));
   }
   if (!clientPromise) {
     clientPromise = SignClient.init({
@@ -30,7 +30,7 @@ export function getClient() {
       relayUrl: RELAY_URL,
       metadata: {
         name: 'RN Defi Wallet',
-        description: 'RN 课程项目：内嵌钱包 + WalletConnect',
+        description: tt('wc.metadataDescription'),
         url: 'https://example.com',
         icons: ['https://walletconnect.com/walletconnect-logo.png'],
       },
@@ -60,7 +60,7 @@ export async function connect() {
       },
     },
   });
-  if (!uri) throw new Error('生成连接 URI 失败');
+  if (!uri) throw new Error(tt('wc.generateUriFailed'));
   return { uri, approval };
 }
 

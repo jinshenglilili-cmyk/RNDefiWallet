@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { KeyboardProvider, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { useSession } from '@/utils/ctx';
+import { t as tt } from '@/i18n';
 import Loading from '@/components/shared/Loading';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -57,22 +58,22 @@ export default function SignUpForm(props) {
         {loading && <Loading />}
 
         <View style={styles.noticeWrapper}>
-          <Text style={styles.notice}>已经拥有帐户了？ </Text>
+          <Text style={styles.notice}>{tt('auth.signup.hasAccount')} </Text>
           <MaterialCommunityIcons name={'arrow-right'} size={25} color={'#fff'} />
           <TouchableOpacity onPress={() => setSelected('signIn')}>
-            <Text style={styles.noticeLink}>会员登录</Text>
+            <Text style={styles.noticeLink}>{tt('auth.signup.goSignIn')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>会员注册</Text>
+          <Text style={styles.title}>{tt('auth.signup.heading')}</Text>
           <View style={styles.form}>
             <View style={styles.formGroup}>
-              <Text style={styles.label}>电子邮箱</Text>
+              <Text style={styles.label}>{tt('auth.signup.emailLabel')}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={[styles.input]}
-                  placeholder="例）name@clwy.cn"
+                  placeholder={tt('auth.signup.emailPlaceholder')}
                   keyboardType={'email-address'}
                   autoCapitalize={'none'}
                   autoCorrect={false}
@@ -82,11 +83,11 @@ export default function SignUpForm(props) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>用户名</Text>
+              <Text style={styles.label}>{tt('auth.signup.usernameLabel')}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={[styles.input]}
-                  placeholder="英文或数字，5位以上，不能以数字开头"
+                  placeholder={tt('auth.signup.usernamePlaceholder')}
                   autoCapitalize={'none'}
                   autoCorrect={false}
                   onChangeText={(text) => onChangeText('username', text)}
@@ -95,11 +96,11 @@ export default function SignUpForm(props) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>昵称</Text>
+              <Text style={styles.label}>{tt('auth.signup.nicknameLabel')}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={[styles.input]}
-                  placeholder="中文、英文或数字，不含特殊字符"
+                  placeholder={tt('auth.signup.nicknamePlaceholder')}
                   keyboardType={'email-address'}
                   autoCapitalize={'none'}
                   autoCorrect={false}
@@ -109,7 +110,7 @@ export default function SignUpForm(props) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>密码</Text>
+              <Text style={styles.label}>{tt('auth.signup.passwordLabel')}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={[styles.input]}
@@ -134,7 +135,7 @@ export default function SignUpForm(props) {
 
           <TouchableWithoutFeedback disabled={!agreedPolicy} onPress={handleSubmit}>
             <View style={[styles.submitWrapper, agreedPolicy && styles.canSubmitWrapper]}>
-              <Text style={[styles.submit, agreedPolicy && styles.canSubmit]}>注册</Text>
+              <Text style={[styles.submit, agreedPolicy && styles.canSubmit]}>{tt('auth.signup.submit')}</Text>
             </View>
           </TouchableWithoutFeedback>
 
@@ -146,17 +147,17 @@ export default function SignUpForm(props) {
                 color={agreedPolicy ? '#629BF0' : '#999'}
                 style={styles.privacyCheckbox}
               />
-              <Text style={styles.privacyText}>已阅读并同意</Text>
+              <Text style={styles.privacyText}>{tt('auth.agree.prefix')}</Text>
               <TouchableOpacity
                 onPress={() => WebBrowser.openBrowserAsync('https://clwy.cn/rules')}
               >
-                <Text style={styles.privacy}>会员使用条款</Text>
+                <Text style={styles.privacy}>{tt('auth.agree.terms')}</Text>
               </TouchableOpacity>
-              <Text style={styles.privacyText}>和</Text>
+              <Text style={styles.privacyText}>{tt('auth.agree.and')}</Text>
               <TouchableOpacity
                 onPress={() => WebBrowser.openBrowserAsync('https://clwy.cn/privacy')}
               >
-                <Text style={styles.privacy}>隐私政策</Text>
+                <Text style={styles.privacy}>{tt('auth.agree.privacy')}</Text>
               </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>

@@ -7,6 +7,7 @@
 // 导入私钥的账号没有交易签名通道（原生模块只支持助记词签交易），提前拦截。
 
 import Wallet from '@wallet';
+import { t as tt } from '@/i18n';
 import * as walletStore from '../walletStore';
 import { getNonce, getGasPrice, estimateGas, sendRawTransaction, waitForReceipt } from './bscRpc';
 
@@ -16,10 +17,10 @@ import { getNonce, getGasPrice, estimateGas, sendRawTransaction, waitForReceipt 
  */
 export async function assertSigningAccount(meta) {
   const addr = meta?.accounts?.[meta?.current];
-  if (!addr) throw new Error('请先创建钱包');
+  if (!addr) throw new Error(tt('defi.common.noWalletCreated'));
   const type = walletStore.accountType(meta, meta.current);
   if (type === 'private-key') {
-    throw new Error('导入私钥的账号暂不支持 DeFi 交易，请切换到助记词账号');
+    throw new Error(tt('defi.common.privateKeyUnsupported'));
   }
   return addr;
 }
@@ -86,7 +87,7 @@ export async function ensureApproval({ tokenAddress, owner, spender, amountWei, 
     mnemonic,
   });
   if (receipt && receipt.status !== '0x1') {
-    throw new Error('授权交易失败，请检查 BNB 余额后重试');
+    throw new Error(tt('defi.common.approveFailed'));
   }
   return { approved: true, txHash };
 }

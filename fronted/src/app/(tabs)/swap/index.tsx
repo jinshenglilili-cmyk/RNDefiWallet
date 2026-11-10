@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 
+import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
@@ -89,7 +90,7 @@ export default function SwapTab() {
       setQuote({ amountOutWei, amountInWei });
     } catch (err) {
       setQuote(null);
-      setQuoteError(provider === 'pancake' ? String(err.message ?? err) : '1inch 报价不可用（需网络或 API Key），可改用 PancakeSwap');
+      setQuoteError(provider === 'pancake' ? String(err.message ?? err) : tt('defi.swap.oneInchUnavailable'));
     } finally {
       setQuoting(false);
     }
@@ -112,14 +113,14 @@ export default function SwapTab() {
       const amountInWei = parseTokenAmount(amount, 18);
       const bal = tokenBalance(fromToken);
       if (bal === null || bal === undefined || bal < amountInWei) {
-        throw new Error(`${fromToken.symbol} 余额不足`);
+        throw new Error(tt('defi.swap.insufficientBalance', { symbol: fromToken.symbol }));
       }
       if (!quote || quote.amountInWei !== amountInWei) {
-        throw new Error('报价已过期，请重新获取');
+        throw new Error(tt('defi.swap.quoteStale'));
       }
       const slip = Number(slippage);
       if (!(slip >= 0.01 && slip <= 50)) {
-        throw new Error('滑点需在 0.01% ~ 50% 之间');
+        throw new Error(tt('defi.swap.slippageRange'));
       }
       const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
 
@@ -145,12 +146,19 @@ export default function SwapTab() {
 
       const est = formatTokenAmount(quote.amountOutWei);
       Alert.alert(
-        '确认兑换',
-        `${amount} ${fromToken.symbol} → ≥${est} ${toToken.symbol}\n协议：${routerLabel}（BSC）\n滑点：${slip}%`,
+        tt('defi.swap.confirmTitle'),
+        tt('defi.swap.confirmBody', {
+          amount,
+          from: fromToken.symbol,
+          to: toToken.symbol,
+          est,
+          router: routerLabel,
+          slip,
+        }),
         [
-          { text: '取消', style: 'cancel', onPress: () => setBusy(false) },
+          { text: tt('common.cancel'), style: 'cancel', onPress: () => setBusy(false) },
           {
-            text: '确认',
+            text: tt('common.confirm'),
             style: 'destructive',
             onPress: async () => {
               try {
@@ -168,23 +176,23 @@ export default function SwapTab() {
                   from: address,
                   to: target,
                   amount: `${amount} ${fromToken.symbol}`,
-                  status: '处理中',
+                  status: tt('common.processing'),
                 });
                 const { txHash, receipt } = await signAndSendWithReceipt({
                   to: target, data, valueWei, from, mnemonic,
                 });
                 const ok = !receipt || receipt.status === '0x1';
                 await walletStore.updateTransaction(record.id, {
-                  status: ok ? '成功' : '失败',
+                  status: ok ? tt('common.success') : tt('common.failed'),
                   txHash,
-                  error: ok ? undefined : '合约执行失败（revert）',
+                  error: ok ? undefined : tt('defi.common.revert'),
                 });
-                Alert.alert(ok ? '兑换成功' : '兑换失败', `交易哈希：\n${txHash}`);
+                Alert.alert(ok ? tt('defi.swap.success') : tt('defi.swap.failed'), tt('defi.common.txHashAlert', { hash: txHash }));
                 setAmount('');
                 setQuote(null);
                 refresh();
               } catch (err) {
-                Alert.alert('兑换失败', String(err.message ?? err));
+                Alert.alert(tt('defi.swap.failed'), String(err.message ?? err));
               } finally {
                 setBusy(false);
               }
@@ -193,7 +201,7 @@ export default function SwapTab() {
         ]
       );
     } catch (err) {
-      Alert.alert('无法兑换', String(err.message ?? err));
+      Alert.alert(tt('defi.swap.cannotSwap'), String(err.message ?? err));
       setBusy(false);
     }
   }
@@ -204,7 +212,7 @@ export default function SwapTab() {
   return (
     <DefiGuard session={session} hasAccount={hasAccount}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <DefiHeader title="Swap" subtitle="PancakeSwap V2 · 1inch · BSC 链" />
+        <DefiHeader title="Swap" subtitle={tt('defi.swap.headerSubtitle')} />
 
         {/* 协议选择 */}
         <View style={styles.providerRow}>
@@ -215,7 +223,7 @@ export default function SwapTab() {
               onPress={() => setProvider(key)}
             >
               <Text style={[styles.providerText, provider === key && styles.providerTextActive]}>
-                {key === 'pancake' ? 'PancakeSwap V2（链上报价）' : '1inch 聚合器（实验）'}
+                {key === 'pancake' ? tt('defi.swap.providerPancake') : tt('defi.swap.providerOneInch')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -223,7 +231,7 @@ export default function SwapTab() {
 
         {/* 兑换卡 */}
         <View style={styles.card}>
-          <Text style={styles.sectionLabel}>卖出</Text>
+          <Text style={styles.sectionLabel}>{tt('defi.swap.sell')}</Text>
           <View style={styles.inputRow}>
             <TouchableOpacity style={styles.tokenBtn} onPress={() => setSheet('from')}>
               <Text style={{ fontSize: 18, marginRight: 6 }}>{fromToken.icon}</Text>
@@ -241,8 +249,10 @@ export default function SwapTab() {
           </View>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceText}>
-              余额 {tokenBalance(fromToken) !== null && tokenBalance(fromToken) !== undefined
-                ? formatTokenAmount(tokenBalance(fromToken)) : '加载中'}
+              {tt('defi.swap.balance', {
+                amount: tokenBalance(fromToken) !== null && tokenBalance(fromToken) !== undefined
+                  ? formatTokenAmount(tokenBalance(fromToken)) : tt('common.loading'),
+              })}
             </Text>
             <TouchableOpacity onPress={pickMax}>
               <Text style={styles.maxText}>MAX</Text>
@@ -259,7 +269,7 @@ export default function SwapTab() {
             <Text style={styles.flipIcon}>⇅</Text>
           </TouchableOpacity>
 
-          <Text style={styles.sectionLabel}>买入</Text>
+          <Text style={styles.sectionLabel}>{tt('defi.swap.buy')}</Text>
           <View style={styles.inputRow}>
             <TouchableOpacity style={styles.tokenBtn} onPress={() => setSheet('to')}>
               <Text style={{ fontSize: 18, marginRight: 6 }}>{toToken.icon}</Text>
@@ -277,7 +287,7 @@ export default function SwapTab() {
         </View>
 
         {/* 滑点设置 */}
-        <Text style={styles.sectionLabel}>滑点容忍（%）</Text>
+        <Text style={styles.sectionLabel}>{tt('defi.swap.slippageLabel')}</Text>
         <View style={styles.slipRow}>
           {SLIPPAGE_PRESETS.map((s) => (
             <TouchableOpacity
@@ -294,7 +304,7 @@ export default function SwapTab() {
             style={[styles.slipInput, !SLIPPAGE_PRESETS.includes(Number(slippage)) && styles.slipInputActive]}
             value={slippage}
             onChangeText={(v) => /^\d*\.?\d*$/.test(v) && setSlippage(v)}
-            placeholder="自定义"
+            placeholder={tt('defi.swap.customSlippage')}
             placeholderTextColor={t.secondaryText}
             keyboardType="decimal-pad"
           />
@@ -306,13 +316,12 @@ export default function SwapTab() {
           onPress={handleSwap}
         >
           <Text style={styles.swapButtonText}>
-            {busy ? '交易处理中…' : quoting ? '获取报价…' : quote ? '兑换' : '输入金额以获取报价'}
+            {busy ? tt('defi.swap.btnBusy') : quoting ? tt('defi.swap.btnQuoting') : quote ? tt('defi.swap.btnSwap') : tt('defi.swap.btnEnterAmount')}
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.tip}>
-          说明：兑换在 BSC 链上执行，需要少量 BNB 作 gas；PancakeSwap V2 手续费 0.25%。
-          1inch 为聚合路由（实验功能），网络不可达时会提示改用 PancakeSwap。授权只需在额度不足时发起。
+          {tt('defi.swap.tip')}
         </Text>
 
         <TokenSheet

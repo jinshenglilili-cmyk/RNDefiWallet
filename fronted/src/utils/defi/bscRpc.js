@@ -3,6 +3,8 @@
 // DeFi 三个 tab（Swap/LP/借贷）统一走 BSC 链：PancakeSwap V2 与 Aave V3 都在
 // BSC 有深度流动性。与主网 rpc.js 分开，避免互相影响（转账页仍走主网）。
 
+import { t as tt } from '@/i18n';
+
 const RPC_URL = 'https://bsc-rpc.publicnode.com';
 /** BSC 链 ID（十进制字符串，签名参数用） */
 export const CHAIN_ID = '56';
@@ -19,11 +21,11 @@ export async function rpc(method, params = []) {
     body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params }),
   });
   if (!response.ok) {
-    throw new Error(`RPC 请求失败：HTTP ${response.status}`);
+    throw new Error(tt('defi.rpc.httpError', { status: response.status }));
   }
   const { result, error } = await response.json();
   if (error) {
-    throw new Error(`RPC ${method} 出错：${error.message ?? JSON.stringify(error)}`);
+    throw new Error(tt('defi.rpc.rpcError', { method, message: error.message ?? JSON.stringify(error) }));
   }
   return result;
 }

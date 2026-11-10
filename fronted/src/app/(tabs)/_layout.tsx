@@ -2,12 +2,16 @@ import { Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 
+import { t as tt, useI18nLocale } from '@/i18n';
+
 export default function TabLayout() {
+  // 订阅语言：切换语言时 key 变化使 Tabs 重挂载，标题随语言刷新
+  const locale = useI18nLocale();
   function MdTabBarIcon(props) {
     return <MaterialCommunityIcons size={26} {...props} />;
   }
   return (
-    <Tabs
+    <Tabs key={locale}
       screenOptions={{
         headerShown: false,
         // Android 取消水波纹效果（展平 style，并去掉 TouchableOpacity 不接受的 ref）
@@ -33,7 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="market"
         options={{
-          title: '行情',
+          title: tt('tabs.market'),
           headerShown: false, // 行情用自己的页内导航（对齐参考项目）
           tabBarIcon: ({ color }) => <MdTabBarIcon name="chart-line" color={color} />
         }}
@@ -42,7 +46,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="swap"
         options={{
-          title: 'Swap',
+          title: tt('tabs.swap'),
           headerShown: false,
           tabBarIcon: ({ color }) => <MdTabBarIcon name="swap-horizontal" color={color} />,
         }}
@@ -50,7 +54,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="lp"
         options={{
-          title: 'LP',
+          title: tt('tabs.lp'),
           headerShown: false,
           tabBarIcon: ({ color }) => <MdTabBarIcon name="layers-outline" color={color} />,
         }}
@@ -58,7 +62,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="lend"
         options={{
-          title: '借贷',
+          title: tt('tabs.lend'),
           headerShown: false,
           tabBarIcon: ({ color }) => <MdTabBarIcon name="bank-outline" color={color} />,
         }}
@@ -66,7 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="wallet"
         options={{
-          title: '钱包',
+          title: tt('tabs.wallet'),
           headerShown: false,
           tabBarIcon: ({ color }) => <MdTabBarIcon name="wallet-outline" color={color} />,
         }}

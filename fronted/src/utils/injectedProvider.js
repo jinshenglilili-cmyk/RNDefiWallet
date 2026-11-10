@@ -5,6 +5,8 @@
 //
 // 注意：这个字符串会以模板字面量嵌入 WebView，不能包含反引号。
 
+import { t as tt } from '@/i18n';
+
 const CHAIN_ID_HEX = '0x1';
 
 const INJECTED_PROVIDER = `
@@ -97,7 +99,7 @@ const INJECTED_PROVIDER = `
         detail: Object.freeze({
           info: {
             uuid: '350670db-19fa-4704-a866-2b8a3b5c1d2e',
-            name: '内置钱包',
+            name: '${tt('browser.builtInWallet')}',
             icon: icon,
             rdns: 'cn.clwy.defiwallet',
           },

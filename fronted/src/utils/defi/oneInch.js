@@ -6,6 +6,8 @@
 //
 // Swap tab 的「1inch」选项就是走这里（实验性，网络可达时可用）。
 
+import { t as tt } from '@/i18n';
+
 const BASES = [
   'https://api.1inch.dev/swap/v6.0/56', // 官方当前版本（需 API Key 时返回 401）
   'https://api.1inch.io/v5.2/56',       // 旧版公共网关，可能仍可用
@@ -34,7 +36,7 @@ async function request(path, params) {
       lastErr = err;
     }
   }
-  throw lastErr ?? new Error('1inch 请求失败');
+  throw lastErr ?? new Error(tt('defi.oneInch.requestFailed'));
 }
 
 /**
@@ -48,7 +50,7 @@ export async function quote(srcToken, dstToken, amountWei) {
     dst: dstToken,
     amount: amountWei.toString(),
   });
-  if (!data?.dstAmount) throw new Error('1inch 报价失败');
+  if (!data?.dstAmount) throw new Error(tt('defi.oneInch.quoteFailed'));
   return { dstAmount: BigInt(data.dstAmount) };
 }
 
@@ -66,7 +68,7 @@ export async function buildSwap(srcToken, dstToken, amountWei, fromAddr, slippag
     slippage: String(slippagePercent),
   });
   const tx = data?.tx;
-  if (!tx?.to || !tx?.data) throw new Error('1inch 未返回交易数据');
+  if (!tx?.to || !tx?.data) throw new Error(tt('defi.oneInch.noTxData'));
   return {
     to: tx.to,
     data: tx.data,
