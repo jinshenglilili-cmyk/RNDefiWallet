@@ -73,7 +73,7 @@ public class WalletModule: Module {
 
       switch coin {
       case "ethereum":
-        return try signEthereumTransaction(wallet, params)
+        return try signEthereumTransaction(try keyFor(wallet, .ethereum).data, params)
       case "tron":
         return try signTronTransaction(wallet, params)
       case "bitcoin":
@@ -81,6 +81,16 @@ public class WalletModule: Module {
       default:
         throw unsupportedCoin(coin)
       }
+    }
+
+    // 用私钥（hex）直接签名以太坊交易（私钥导入账号的签名通道），返回可广播的原始交易 hex
+    AsyncFunction("signTransactionWithPrivateKey") {
+      (coin: String, hex: String, params: [String: Any]) -> String in
+      guard coin == "ethereum" else {
+        throw unsupportedCoin(coin)
+      }
+      let key = try privateKeyFromHex(hex)
+      return try signEthereumTransaction(key.data, params)
     }
 
     // 导入私钥（hex），返回对应的以太坊地址
@@ -115,7 +125,7 @@ public class WalletModule: Module {
 
   /// 以太坊交易签名（Legacy 交易）
   /// 金额类字段接收 hex 字符串（可带 0x 前缀），JS 层负责把十进制转成 hex
-  private func signEthereumTransaction(_ wallet: HDWallet, _ params: [String: Any]) throws -> String {
+  private func signEthereumTransaction(_ privateKeyData: Data, _ params: [String: Any]) throws -> String {
     let chainId = try hexValue(params, "chainId")
     let nonce = try hexValue(params, "nonce")
     let gasPrice = try hexValue(params, "gasPrice")
@@ -127,7 +137,6 @@ public class WalletModule: Module {
     }
 
     let dataHex = params["data"] as? String
-    let privateKeyData = try keyFor(wallet, .ethereum).data
 
     let input = EthereumSigningInput.with {
       $0.chainID = minimalData(hex: chainId)

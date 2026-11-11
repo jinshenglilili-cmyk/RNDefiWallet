@@ -154,6 +154,12 @@ declare class WalletNativeModule extends NativeModule<{
     params: SignParams[Coin],
     options?: { passphrase?: string }
   ): Promise<string>;
+  /** 用私钥（hex）签名以太坊交易，返回原始交易 hex */
+  signTransactionWithPrivateKey(
+    coin: 'ethereum',
+    privateKeyHex: string,
+    params: EthereumSignParams
+  ): Promise<string>;
   /** 按账户序号派生地址（BIP44 路径 index 位），用于多账号切换 */
   deriveAddress(coin: Coin, mnemonic: string, index: number, passphrase?: string): Promise<string>;
 }> {}
@@ -162,18 +168,27 @@ const native = requireNativeModule<WalletNativeModule>('Wallet');
 
 /**
  * 数值转最小大端 hex（带 0x 前缀）
- * 接受十进制字符串或 hex 字符串，统一归一化，0 返回 '0x'（空字节，表示数值 0）
+ * 带 0x 前缀按 hex 解析；纯数字按十进制解析（调用方统一传十进制字符串），
+ * 0 返回 '0x'（空字节，表示数值 0）
  */
 function toHex(value: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`非法的数值：${value}`);
   }
-  const raw = value.trim().replace(/^0[xX]/, '');
-  if (!/^[0-9a-fA-F]+$/.test(raw)) {
+  const trimmed = value.trim();
+  let n: bigint;
+  if (/^0[xX][0-9a-fA-F]+$/.test(trimmed)) {
+    n = BigInt(trimmed);
+  } else if (/^[0-9]+$/.test(trimmed)) {
+    n = BigInt(trimmed);
+  } else {
     throw new Error(`非法的数值：${value}`);
   }
-  // BigInt 归一化：十进制和 hex 都能正确转换，并去掉前导 0
-  return `0x${BigInt(`0x${raw}`).toString(16)}`;
+  // BigInt 归一化：十进制和 hex 都能正确转换，并去掉前导 0。
+  // 必须补成偶数长度：原生侧 dataFromHex 拒绝奇数长度 hex（会静默变 0）
+  const hexBody = n.toString(16);
+  const padded = hexBody.length % 2 === 1 ? `0${hexBody}` : hexBody;
+  return n === 0n ? '0x' : `0x${padded}`;
 }
 
 /**
@@ -282,6 +297,22 @@ const Wallet = {
       );
     }
     return native.signTransaction(coin, mnemonic, params, options);
+  },
+
+  /**
+   * 用私钥（hex）签名以太坊交易（私钥导入账号的签名通道）
+   * 返回原始交易 hex（eth_sendRawTransaction 可直接广播）
+   */
+  signTransactionWithPrivateKey(
+    coin: 'ethereum',
+    privateKeyHex: string,
+    params: EthereumSignParams
+  ): Promise<string> {
+    return native.signTransactionWithPrivateKey(
+      coin,
+      privateKeyHex.trim().replace(/^0x/i, ''),
+      normalizeEthereumParams(params)
+    );
   },
 
   /** 原生模块本体（一般不需要直接使用） */

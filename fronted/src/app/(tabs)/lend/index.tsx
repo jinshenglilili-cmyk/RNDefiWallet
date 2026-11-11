@@ -11,16 +11,17 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { t as tt } from '@/i18n';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { WBNB, tokenBySymbol } from '@/utils/defi/tokens';
+import { getTokens, tokenBySymbol, aaveWrappedAddress, net, wrappedSymbol } from '@/utils/defi/tokens';
 import * as aave from '@/utils/defi/aave';
 import { balanceOf } from '@/utils/defi/erc20';
 import { formatTokenAmount } from '@/utils/defi/format';
 import { DefiGuard, DefiHeader } from '@/components/defi/ui';
 
 /**
- * 借贷资产清单（BSC 上有活跃储备的；DAI 在 BSC 无活跃储备故排除）
+ * 可存资产符号（按当前网络的代币清单推导：排除 wrapped 侧，如 WBNB/WETH）。
+ * 无活跃储备的代币（如 Sepolia 上的模拟币）会在加载时被 reserveTokens=0 过滤。
  */
-const LEND_SYMBOLS = ['BNB', 'USDT', 'USDC', 'ETH', 'BTCB', 'CAKE'];
+const LEND_SYMBOLS = () => getTokens().filter((t) => !t.wrapped).map((t) => t.symbol);
 
 /**
  * 借贷 Tab：Aave V3（BSC）存币生息
@@ -32,8 +33,12 @@ const LEND_SYMBOLS = ['BNB', 'USDT', 'USDC', 'ETH', 'BTCB', 'CAKE'];
 export default function LendTab() {
   const t = useTheme();
   const router = useRouter();
-  const { session, hasAccount, address, bnbBalance, balances } = useBscWallet();
+   const { session, hasAccount, address, bnbBalance, balances, network, refresh } = useBscWallet();
   const styles = makeStyles(t);
+
+  const headerSubtitle = network === 'sepolia'
+    ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
+    : tt('defi.lend.headerSubtitle');
 
   const [account, setAccount] = useState(null); // getUserAccountData 结果
   const [deposits, setDeposits] = useState([]); // [{ symbol, token, amount, price }]
@@ -48,12 +53,13 @@ export default function LendTab() {
     }
     setLoading(true);
     try {
+      const symbols = LEND_SYMBOLS();
       const [acc, depResults] = await Promise.all([
         aave.getUserAccountData(address).catch(() => null),
         Promise.allSettled(
-          LEND_SYMBOLS.map(async (sym) => {
+          symbols.map(async (sym) => {
             const token = tokenBySymbol(sym);
-            const asset = token.native ? WBNB : token.address; // BNB 用 WBNB 作储备资产
+            const asset = token.native ? aaveWrappedAddress() : token.address; // 原生币用 Aave 储备里的 wrapped 资产
             const { aToken } = await aave.reserveTokens(asset);
             if (!aToken || BigInt(aToken) === 0n) return null; // 无活跃储备
             const [amount, price] = await Promise.all([
@@ -115,7 +121,7 @@ export default function LendTab() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.secondaryText} />
         }
       >
-        <DefiHeader title={tt('defi.lend.headerTitle')} subtitle={tt('defi.lend.headerSubtitle')} />
+        <DefiHeader title={tt('defi.lend.headerTitle')} subtitle={headerSubtitle} />
 
         {/* 账户总览 */}
         <View style={styles.card}>
@@ -155,7 +161,7 @@ export default function LendTab() {
 
         {/* 资产列表：钱包余额 + 已有存款数量（原「我的存款」「存入资产」两个模块合并） */}
         <Text style={styles.sectionTitle}>{tt('defi.lend.supplyAssets')}</Text>
-        {LEND_SYMBOLS.map((sym) => {
+        {LEND_SYMBOLS().map((sym) => {
           const token = tokenBySymbol(sym);
           const row = deposits.find((d) => d.symbol === sym);
           const hasDeposit = row && row.amount > 0n;
@@ -175,14 +181,14 @@ export default function LendTab() {
                   {tt('defi.lend.balance', {
                     amount: token.native
                       ? (bnbBalance !== null ? formatTokenAmount(bnbBalance) : '…')
-                      : (balances?.[sym] !== undefined ? formatTokenAmount(balances[sym]) : '…'),
+                      : (balances?.[sym] !== undefined ? formatTokenAmount(balances[sym], token.decimals) : '…'),
                   })}
                   {hasDeposit ? `\n≈ ${aave.formatBaseAmount(depositUsd(row))}` : ''}
                 </Text>
               </View>
               {hasDeposit ? (
                 <View style={styles.depositRight}>
-                  <Text style={styles.depositAmount}>{formatTokenAmount(row.amount)}</Text>
+                  <Text style={styles.depositAmount}>{formatTokenAmount(row.amount, token.decimals)}</Text>
                   <Text style={styles.depositHint}>{tt('defi.lend.appendOrWithdraw')}</Text>
                 </View>
               ) : (
@@ -193,7 +199,7 @@ export default function LendTab() {
         })}
 
         <Text style={styles.tip}>
-          {tt('defi.lend.tip')}
+          {tt('defi.lend.tip', { native: net().nativeSymbol, wrapped: wrappedSymbol() })}
         </Text>
       </ScrollView>
     </DefiGuard>

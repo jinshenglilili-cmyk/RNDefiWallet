@@ -1,9 +1,10 @@
-// PancakeSwap V2：报价 / 兑换 / 流动性（Factory + Router）
+// V2 DEX（BSC: PancakeSwap V2 / Sepolia: 本项目部署的 Uniswap V2 测试实例）
+// 报价 / 兑换 / 流动性（Factory + Router）
 
 import { ethCall } from './bscRpc';
 import { t as tt } from '@/i18n';
 import { encodeCall, decodeWords, wordToAddress } from './abi';
-import { PANCAKE_ROUTER, PANCAKE_FACTORY, WBNB } from './tokens';
+import { net, pathAddress } from './tokens';
 import { parseEther, formatEther } from '../format';
 
 /** 交易 20 分钟后过期（deadline） */
@@ -14,7 +15,7 @@ export function defaultDeadline() {
 /** Factory.getPair：交易对地址（无该对返回 0x0 地址） */
 export async function getPair(tokenA, tokenB) {
   const result = await ethCall(
-    PANCAKE_FACTORY,
+    net().factory,
     encodeCall('getPair(address,address)', ['address', 'address'], [tokenA, tokenB])
   );
   return wordToAddress(decodeWords(result)[0] ?? 0n);
@@ -50,7 +51,7 @@ export async function pairTokens(pair) {
  */
 export async function getAmountsOut(amountIn, path) {
   const result = await ethCall(
-    PANCAKE_ROUTER,
+    net().router,
     encodeCall('getAmountsOut(uint256,address[])', ['uint256', 'address[]'], [amountIn, path])
   );
   const words = decodeWords(result);
@@ -65,7 +66,7 @@ export async function getAmountsOut(amountIn, path) {
  */
 export async function quote(amountA, reserveA, reserveB) {
   const result = await ethCall(
-    PANCAKE_ROUTER,
+    net().router,
     encodeCall('quote(uint256,uint256,uint256)', ['uint256', 'uint256', 'uint256'],
       [amountA, reserveA, reserveB])
   );
@@ -97,31 +98,35 @@ export function swapTokensForTokensData(amountIn, amountOutMin, path, to, deadli
 
 /** 按方向挑兑换函数，返回 { data, valueWei, spender } */
 export function buildSwap(fromToken, toToken, amountInWei, amountOutMin, userAddr, deadline) {
+  const router = net().router;
   const fromNative = !!fromToken?.native;
   const toNative = !!toToken?.native;
-  const path = [fromNative ? WBNB : fromToken.address, toNative ? WBNB : toToken.address];
+  const path = [pathAddress(fromToken), pathAddress(toToken)];
   if (fromNative) {
     return {
-      to: PANCAKE_ROUTER,
+      to: router,
       data: swapETHForTokensData(amountOutMin, path, userAddr, deadline),
       valueWei: amountInWei,
-      // BNB 直接随交易发送，不需要 approve
+      // 原生币直接随交易发送，不需要 approve
       approveToken: null,
+      method: 'swapExactETHForTokens',
     };
   }
   if (toNative) {
     return {
-      to: PANCAKE_ROUTER,
+      to: router,
       data: swapTokensForETHData(amountInWei, amountOutMin, path, userAddr, deadline),
       valueWei: 0n,
       approveToken: fromToken.address,
+      method: 'swapTokensForETH',
     };
   }
   return {
-    to: PANCAKE_ROUTER,
+    to: router,
     data: swapTokensForTokensData(amountInWei, amountOutMin, path, userAddr, deadline),
     valueWei: 0n,
     approveToken: fromToken.address,
+    method: 'swapExactTokensForTokens',
   };
 }
 

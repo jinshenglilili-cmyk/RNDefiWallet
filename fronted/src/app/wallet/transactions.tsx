@@ -16,7 +16,11 @@ import { Animated } from 'react-native';
 
 import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
-import { getBalance, getNonce, getGasPrice, estimateGas, sendRawTransaction } from '@/utils/rpc';
+// 真实转账走当前 DeFi 网络的原生币（BSC 链 → BNB，Sepolia 测试网 → ETH），
+// RPC 与 chainId 都从 bscRpc 现场读取，切换网络后无需重启
+import { getBalance, getNonce, getGasPrice, estimateGas, sendRawTransaction, nativeSymbol, chainId } from '@/utils/defi/bscRpc';
+import { net } from '@/utils/defi/tokens';
+import { useDefiNetwork } from '@/stores/defiNetwork';
 import { parseEther, formatEther } from '@/utils/format';
 import { useTheme } from '@/utils/theme';
 import { t as tt } from '@/i18n';
@@ -70,6 +74,8 @@ export default function Transactions() {
   const [amount, setAmount] = useState('');
   const [chainKey, setChainKey] = useState('ethereum');
   const [busy, setBusy] = useState(false);
+  // 订阅 DeFi 网络：切换后余额/签名 chainId/显示符号随网络变化
+  const defiNetwork = useDefiNetwork((s) => s.network);
 
   const styles = makeStyles(t);
 
@@ -132,19 +138,19 @@ export default function Transactions() {
     }
   }
 
-  // ETH：真实链上转账（Trust Wallet Core 签名 -> 广播）
+  // 当前 DeFi 网络原生币：真实链上转账（签名凭据按账号类型自动选择 -> 广播）
   async function sendRealEth(valueWei) {
     let record = null;
     try {
       setBusy(true);
-      const mnemonic = await walletStore.getMnemonic();
+      const sign = await walletStore.getSigningCredential(from);
       record = await walletStore.addTransaction({
         type: 'transfer',
         from,
         to: to.trim(),
         amount: formatEther(valueWei),
-        chain: 'ethereum',
-        chainSymbol: 'ETH',
+        chain: net().id,
+        chainSymbol: nativeSymbol(),
         status: tt('common.processing'),
       });
       setSheetVisible(false);
@@ -156,14 +162,23 @@ export default function Transactions() {
         to: to.trim(),
         value: '0x' + valueWei.toString(16),
       });
-      const rawTx = await Wallet.signTransaction('ethereum', mnemonic, {
-        chainId: '1',
-        nonce,
-        gasPrice,
-        gasLimit,
-        to: to.trim(),
-        value: valueWei.toString(10),
-      });
+      const rawTx = await (sign.privateKey
+        ? Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, {
+            chainId: chainId(),
+            nonce,
+            gasPrice,
+            gasLimit,
+            to: to.trim(),
+            value: valueWei.toString(10),
+          })
+        : Wallet.signTransaction('ethereum', sign.mnemonic, {
+            chainId: chainId(),
+            nonce,
+            gasPrice,
+            gasLimit,
+            to: to.trim(),
+            value: valueWei.toString(10),
+          }));
       const txHash = await sendRawTransaction(rawTx);
       await walletStore.updateTransaction(record.id, { status: tt('common.success'), txHash });
     } catch (err) {
@@ -332,7 +347,7 @@ export default function Transactions() {
               {meta ? tt('wallet.common.accountName', { index: meta.current + 1 }) : '-'}
             </Text>
             <Text style={styles.accountAddr} numberOfLines={1}>
-              ETH {shorten(from)}
+              {nativeSymbol()} {shorten(from)}
             </Text>
             {balance !== null ? <Text style={styles.accountBalance}>{tt('wallet.transactions.balanceLine', { balance })}</Text> : null}
           </View>
@@ -368,7 +383,7 @@ export default function Transactions() {
             </TouchableOpacity>
           </View>
 
-          {/* 区块链横向选择 */}
+          {/* 区块链横向选择（ethereum 项 = 当前 DeFi 网络的原生币） */}
           <Text style={styles.sectionTitle}>{tt('wallet.transactions.blockchain')}</Text>
           <View style={styles.chainRow}>
             {CHAINS.map((c) => {
@@ -380,7 +395,7 @@ export default function Transactions() {
                   style={[styles.chainCell, active && styles.chainCellActive]}
                 >
                   <Text style={[styles.chainCellText, active && styles.chainCellTextActive]}>
-                    {c.symbol}
+                    {c.key === 'ethereum' ? nativeSymbol() : c.symbol}
                   </Text>
                 </TouchableOpacity>
               );
@@ -390,7 +405,11 @@ export default function Transactions() {
             <Text style={styles.chainHint}>
               {tt('wallet.transactions.chainHint', { name: chainName(chainKey) })}
             </Text>
-          ) : null}
+          ) : (
+            <Text style={styles.chainHint}>
+              {tt('wallet.transactions.chainHint', { name: tt(`defi.network.${net().id}`) })}
+            </Text>
+          )}
 
           <TouchableOpacity
             style={[styles.submitButton, (!to.trim() || !amount || busy) && styles.disabled]}

@@ -17,4 +17,7 @@ export default {
   signOutConfirmOk: 'Sign Out',
   language: 'Language / 语言',
   languageSection: 'General',
+  // DeFi network (BSC mainnet / Sepolia testnet)
+  defiNetwork: 'DeFi Network',
+  defiNetworkSection: 'DeFi',
 };

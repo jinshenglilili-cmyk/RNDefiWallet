@@ -1,8 +1,9 @@
-// Aave V3（BSC）：存款 / 取款 / 账户数据 / 储备资产信息
+// Aave V3：存款 / 取款 / 账户数据 / 储备资产信息
+// 网络：BSC 主网 / Sepolia 测试网（地址见 utils/defi/tokens.js 的 net()）
 
 import { ethCall } from './bscRpc';
 import { encodeCall, decodeWords, wordToAddress } from './abi';
-import { AAVE_POOL, AAVE_DATA_PROVIDER, AAVE_ORACLE } from './tokens';
+import { net } from './tokens';
 
 /**
  * Pool.getUserAccountData
@@ -13,7 +14,7 @@ import { AAVE_POOL, AAVE_DATA_PROVIDER, AAVE_ORACLE } from './tokens';
  */
 export async function getUserAccountData(address) {
   const result = await ethCall(
-    AAVE_POOL,
+    net().aave.pool,
     encodeCall('getUserAccountData(address)', ['address'], [address])
   );
   const w = decodeWords(result);
@@ -46,7 +47,7 @@ export function formatHealthFactor(hf) {
  */
 export async function reserveTokens(asset) {
   const result = await ethCall(
-    AAVE_DATA_PROVIDER,
+    net().aave.dataProvider,
     encodeCall('getReserveTokensAddresses(address)', ['address'], [asset])
   );
   const w = decodeWords(result);
@@ -63,7 +64,7 @@ export async function reserveTokens(asset) {
  */
 export async function reserveInfo(asset) {
   const result = await ethCall(
-    AAVE_DATA_PROVIDER,
+    net().aave.dataProvider,
     encodeCall('getReserveData(address)', ['address'], [asset])
   );
   const w = decodeWords(result);
@@ -83,7 +84,7 @@ export async function reserveInfo(asset) {
 /** AaveOracle.getAssetPrice：USD 价格（8 位精度 BigInt） */
 export async function assetPrice(asset) {
   const result = await ethCall(
-    AAVE_ORACLE,
+    net().aave.oracle,
     encodeCall('getAssetPrice(address)', ['address'], [asset])
   );
   return decodeWords(result)[0] ?? 0n;

@@ -15,7 +15,7 @@ import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { AAVE_POOL, WBNB, tokenBySymbol } from '@/utils/defi/tokens';
+import { net, aaveWrappedAddress, wrappedSymbol, tokenBySymbol } from '@/utils/defi/tokens';
 import * as aave from '@/utils/defi/aave';
 import { balanceOf, wbnbDepositData, wbnbWithdrawData } from '@/utils/defi/erc20';
 import { formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
@@ -25,8 +25,8 @@ import { DefiGuard, recordDefiTx } from '@/components/defi/ui';
 /**
  * 借贷详情页：存入 / 取回
  * - 数据按 URL 参数的 symbol 链上实时读（aToken 余额 = 我的存款）
- * - 存入：approve → Pool.supply（BNB 先 wrap 成 WBNB）
- * - 取回：Pool.withdraw（BNB 再 unwrap）
+ * - 存入：approve → Pool.supply（原生币先 wrap 成 WBNB/WETH）
+ * - 取回：Pool.withdraw（原生币再 unwrap）
  */
 export default function LendDetail() {
   const params = useLocalSearchParams();
@@ -36,7 +36,7 @@ export default function LendDetail() {
   const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useBscWallet();
   const styles = makeStyles(t);
 
-  const [asset, setAsset] = useState(null); // 储备资产地址（BNB → WBNB）
+  const [asset, setAsset] = useState(null); // 储备资产地址（原生币 → wrapped）
   const [aToken, setAToken] = useState(null); // 对应 aToken 地址
   const [deposit, setDeposit] = useState(0n); // 我的存款（aToken 余额）
   const [loading, setLoading] = useState(false);
@@ -51,7 +51,7 @@ export default function LendDetail() {
     }
     setLoading(true);
     try {
-      const reserve = token.native ? WBNB : token.address;
+      const reserve = token.native ? aaveWrappedAddress() : token.address;
       const { aToken: at } = await aave.reserveTokens(reserve);
       if (!at || BigInt(at) === 0n) {
         setAsset(null);
@@ -73,34 +73,37 @@ export default function LendDetail() {
     }, [loadDetail])
   );
 
-  /** 存入：BNB 先 wrap → approve → Pool.supply */
+  /** 存入：原生币先 wrap → approve → Pool.supply */
   async function handleSupply() {
     try {
       setBusy(true);
+      const pool = net().aave.pool;
+      const wrapped = aaveWrappedAddress();
       const from = await assertSigningAccount(meta);
-      const amt = parseTokenAmount(amount, 18);
+      const amt = parseTokenAmount(amount, token.decimals);
       if (amt <= 0n) throw new Error(tt('defi.lend.needAmount'));
       const isNative = token.native;
-      // BNB：预留 gas 后再 wrap
+      // 原生币：预留 gas 后再 wrap
       const gasReserve = 10n ** 16n;
       const available = isNative && bnbBalance !== null ? bnbBalance - gasReserve : bnbBalance;
       const bal = isNative ? available : balances?.[symbol];
       if (bal === null || bal === undefined || bal < amt) {
         throw new Error(isNative
-          ? tt('defi.lend.insufficientBalanceNative', { symbol })
+          ? tt('defi.lend.insufficientBalanceNative', { symbol, native: net().nativeSymbol })
           : tt('defi.lend.insufficientBalance', { symbol }));
       }
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
+      const sign = await walletStore.getSigningCredential(address);
 
-      // BNB 特殊流程：wrap → approve → supply；其他代币：approve → supply
+      // 原生币特殊流程：wrap → approve → supply；其他代币：approve → supply
+      const nativeParams = { native: net().nativeSymbol, wrapped: wrappedSymbol() };
       const steps = [];
-      if (isNative) steps.push({ label: tt('defi.lend.stepWrap'), to: WBNB, data: wbnbDepositData(), valueWei: amt });
+      if (isNative) steps.push({ label: tt('defi.lend.stepWrap', nativeParams), to: wrapped, data: wbnbDepositData(), valueWei: amt, method: `WETH deposit (wrap ${net().nativeSymbol})` });
       steps.push({ label: tt('defi.lend.stepApprove', { symbol }), approve: asset, amountWei: amt });
-      steps.push({ label: tt('defi.lend.stepSupply'), to: AAVE_POOL, data: aave.supplyData(asset, amt, address), valueWei: 0n });
+      steps.push({ label: tt('defi.lend.stepSupply'), to: pool, data: aave.supplyData(asset, amt, address), valueWei: 0n, method: 'supply (Aave Pool)' });
 
       const record = await recordDefiTx(walletStore, {
         from: address,
-        to: AAVE_POOL,
+        to: pool,
         amount: tt('defi.lend.recordSupply', { amount, symbol }),
         status: tt('common.processing'),
       });
@@ -113,14 +116,14 @@ export default function LendDetail() {
           const res = await ensureApproval({
             tokenAddress: step.approve,
             owner: address,
-            spender: AAVE_POOL,
+            spender: pool,
             amountWei: step.amountWei,
-            mnemonic,
+            sign,
           });
           txHash = res.txHash ?? '';
         } else {
           const res = await signAndSendWithReceipt({
-            to: step.to, data: step.data, valueWei: step.valueWei ?? 0n, from, mnemonic,
+            to: step.to, data: step.data, valueWei: step.valueWei ?? 0n, from, sign, method: step.method,
           });
           txHash = res.txHash;
           if (res.receipt && res.receipt.status !== '0x1') ok = false;
@@ -145,43 +148,47 @@ export default function LendDetail() {
     }
   }
 
-  /** 取回：Pool.withdraw（BNB 再 unwrap） */
+  /** 取回：Pool.withdraw（原生币再 unwrap） */
   async function handleWithdraw() {
     try {
       setBusy(true);
+      const pool = net().aave.pool;
+      const wrapped = aaveWrappedAddress();
       const from = await assertSigningAccount(meta);
-      const amt = parseTokenAmount(amount, 18);
+      const amt = parseTokenAmount(amount, token.decimals);
       if (amt <= 0n) throw new Error(tt('defi.lend.needWithdrawAmount'));
       if (amt > deposit) throw new Error(tt('defi.lend.exceedsDeposit'));
       const isNative = token.native;
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
+      const sign = await walletStore.getSigningCredential(address);
 
       const record = await recordDefiTx(walletStore, {
         from: address,
-        to: AAVE_POOL,
+        to: pool,
         amount: tt('defi.lend.recordWithdraw', { amount, symbol }),
         status: tt('common.processing'),
       });
-      setBusyText(isNative ? tt('defi.lend.stepWithdrawNative') : tt('defi.lend.stepWithdraw'));
+      setBusyText(isNative ? tt('defi.lend.stepWithdrawNative', { wrapped: wrappedSymbol() }) : tt('defi.lend.stepWithdraw'));
       const res = await signAndSendWithReceipt({
-        to: AAVE_POOL,
+        to: pool,
         data: aave.withdrawData(asset, amt, address),
         valueWei: 0n,
         from,
-        mnemonic,
+        sign,
+        method: 'withdraw (Aave Pool)',
       });
       let ok = !res.receipt || res.receipt.status === '0x1';
       let lastHash = res.txHash;
-      // unwrap WBNB → BNB（全量解包，失败不影响取回本身）
+      // unwrap wrapped → 原生币（全量解包，失败不影响取回本身）
       if (ok && isNative) {
         try {
-          setBusyText(tt('defi.lend.stepUnwrap'));
+          setBusyText(tt('defi.lend.stepUnwrap', { native: net().nativeSymbol, wrapped: wrappedSymbol() }));
           const unwrap = await signAndSendWithReceipt({
-            to: WBNB,
+            to: wrapped,
             data: wbnbWithdrawData(amt),
             valueWei: 0n,
             from,
-            mnemonic,
+            sign,
+            method: `WETH withdraw (unwrap ${net().nativeSymbol})`,
           });
           if (unwrap.txHash) lastHash = unwrap.txHash;
         } catch {
@@ -235,7 +242,7 @@ export default function LendDetail() {
               {tt('defi.lend.balance', {
                 amount: token.native
                   ? (bnbBalance !== null ? formatTokenAmount(bnbBalance) : '…')
-                  : (balances?.[symbol] !== undefined ? formatTokenAmount(balances[symbol]) : '…'),
+                  : (balances?.[symbol] !== undefined ? formatTokenAmount(balances[symbol], token.decimals) : '…'),
               })}
             </Text>
             <TouchableOpacity
@@ -250,7 +257,7 @@ export default function LendDetail() {
               <>
                 <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{tt('defi.lend.withdrawSection')}</Text>
                 <Text style={styles.balanceText}>
-                  {tt('defi.lend.currentDeposit', { amount: formatTokenAmount(deposit), symbol })}
+                  {tt('defi.lend.currentDeposit', { amount: formatTokenAmount(deposit, token.decimals), symbol })}
                 </Text>
                 <TouchableOpacity
                   style={[styles.withdrawButton, (!amount || busy) && styles.disabled]}

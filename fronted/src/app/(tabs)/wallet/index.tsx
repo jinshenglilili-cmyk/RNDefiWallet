@@ -14,6 +14,8 @@ import { Image } from 'expo-image';
 import { useAuthStore } from '@/stores/auth';
 import { useWalletStore } from '@/stores/wallet';
 import { accountName } from '@/utils/walletStore';
+import { nativeSymbol } from '@/utils/defi/bscRpc';
+import { useDefiNetwork } from '@/stores/defiNetwork';
 import { useTheme } from '@/utils/theme';
 import { t as tt } from '@/i18n';
 
@@ -35,6 +37,8 @@ export default function WalletTab() {
   const router = useRouter();
   const { session, isLoading: sessionLoading, userInfo } = useAuthStore();
   const { meta, balance, ready, load, switchAccount, deleteAccount, deleteWallet } = useWalletStore();
+  // 订阅 DeFi 网络：切换后余额符号随网络显示（BNB / ETH），返回本 tab 时 load() 会重查对应链
+  const defiNetwork = useDefiNetwork((s) => s.network);
   const [selectorVisible, setSelectorVisible] = useState(false);
   const styles = makeStyles(t);
 
@@ -190,10 +194,10 @@ export default function WalletTab() {
             <Text style={styles.accountCheck}>✓</Text>
           </View>
           <Text style={styles.accountAddress}>
-            ETH {shorten(currentAddr)}
+            {nativeSymbol()} {shorten(currentAddr)}
           </Text>
           {balance !== null ? (
-            <Text style={styles.accountBalance}>{balance} ETH</Text>
+            <Text style={styles.accountBalance}>{balance} {nativeSymbol()}</Text>
           ) : null}
         </TouchableOpacity>
       ) : (
@@ -254,7 +258,7 @@ export default function WalletTab() {
                     {active ? <Text style={styles.selectorCheck}>✓</Text> : null}
                   </View>
                   <Text style={styles.selectorAddress} numberOfLines={1}>
-                    [ETH] {shorten(addr)}
+                    [{nativeSymbol()}] {shorten(addr)}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => confirmDeleteAccount(index)} style={styles.selectorDelete}>

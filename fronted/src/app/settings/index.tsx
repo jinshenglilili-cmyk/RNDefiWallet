@@ -5,10 +5,12 @@ import SubPageHeader from '@/components/SubPageHeader';
 import { useSession } from '@/utils/ctx';
 import { useTheme } from '@/utils/theme';
 import { t as tt, useI18nStore, useI18nLocale, LANG_CHOICES } from '@/i18n';
+import { useDefiNetwork } from '@/stores/defiNetwork';
 
 /**
  * 设置页（普通 push 推出，非弹窗）
  * - 语言切换（跟随系统 / 简体中文 / English）
+ * - DeFi 网络（BSC 主网 / Sepolia 测试网）
  * - 数据来源（CoinGecko）
  * - 应用信息
  * - 退出登录（登录后显示）
@@ -19,7 +21,22 @@ export default function Settings() {
   const { session, signOut } = useSession();
   const locale = useI18nLocale(); // 订阅语言，切换时整页重渲染
   const { choice, setChoice } = useI18nStore();
+  const { network, setNetwork } = useDefiNetwork(); // 订阅 DeFi 网络，切换时整页重渲染
   const styles = makeStyles(t);
+
+  /** DeFi 网络切换弹窗（BSC 主网 / Sepolia 测试网） */
+  function pickNetwork() {
+    Alert.alert(tt('settings.defiNetwork'), undefined, [
+      {
+        text: network === 'bsc' ? `✓ ${tt('defi.network.bsc')}` : tt('defi.network.bsc'),
+        onPress: () => setNetwork('bsc'),
+      },
+      {
+        text: network === 'sepolia' ? `✓ Sepolia 测试网` : 'Sepolia 测试网',
+        onPress: () => setNetwork('sepolia'),
+      },
+    ], { cancelable: true });
+  }
 
   function confirmSignOut() {
     Alert.alert(tt('settings.signOutConfirmTitle'), tt('settings.signOutConfirmMsg'), [
@@ -60,6 +77,17 @@ export default function Settings() {
             <Text style={styles.rowText}>{tt('settings.language')}</Text>
             <Text style={styles.rowValue}>
               {LANG_CHOICES.find((l) => l.code === choice)?.label ?? labelFor(locale)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* DeFi 网络 */}
+        <Text style={styles.sectionHeader}>{tt('settings.defiNetworkSection')}</Text>
+        <TouchableOpacity style={styles.card} activeOpacity={0.6} onPress={pickNetwork}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.rowText}>{tt('settings.defiNetwork')}</Text>
+            <Text style={styles.rowValue}>
+              {network === 'sepolia' ? 'Sepolia 测试网' : tt('defi.network.bsc')}
             </Text>
           </View>
         </TouchableOpacity>

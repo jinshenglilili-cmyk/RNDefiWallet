@@ -60,7 +60,9 @@ export default function AddAccount() {
 
   /** 方式二：导入私钥 */
   async function handleImportKey() {
-    const key = privateKey.trim();
+    // 兼容带/不带 0x 前缀（去除首尾空白后统一补 0x 再校验）
+    const raw = privateKey.trim().replace(/\s+/g, '');
+    const key = raw.startsWith('0x') || raw.startsWith('0X') ? raw : `0x${raw}`;
     if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
       Alert.alert(tt('wallet.addAccount.error'), tt('wallet.addAccount.pkInvalid'));
       return;

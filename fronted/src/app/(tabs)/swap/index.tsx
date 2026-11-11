@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   ScrollView,
   Text,
   TextInput,
@@ -11,7 +12,7 @@ import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { TOKENS, pathAddress } from '@/utils/defi/tokens';
+import { getTokens, pathAddress, net, wrappedSymbol } from '@/utils/defi/tokens';
 import * as pancake from '@/utils/defi/pancake';
 import { getAmountsOut } from '@/utils/defi/pancake';
 import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
@@ -22,18 +23,20 @@ import { DefiGuard, DefiHeader, TokenSheet, recordDefiTx } from '@/components/de
 const SLIPPAGE_PRESETS = [0.1, 0.5, 1.0];
 
 /**
- * Swap Tab：代币兑换（PancakeSwap V2 链上报价为主，1inch 聚合器为实验选项）
- * - 原生 BNB 兑换路径自动换 WBNB；BNB 侧不需要授权
+ * Swap Tab：代币兑换（V2 DEX 链上报价为主，1inch 聚合器为实验选项）
+ * - 原生币兑换路径自动换 WBNB/WETH；原生币侧不需要授权
  * - 滑点设置：0.1% / 0.5% / 1% / 自定义
- * - 交易走 BSC（chainId 56），成功/失败写入钱包交易历史
+ * - 交易走当前 DeFi 网络（BSC / Sepolia），成功/失败写入钱包交易历史
  */
 export default function SwapTab() {
   const t = useTheme();
-  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useBscWallet();
+  const { session, meta, hasAccount, address, bnbBalance, balances, refresh, network } = useBscWallet();
   const styles = makeStyles(t);
 
-  const [fromToken, setFromToken] = useState(TOKENS[0]); // BNB
-  const [toToken, setToToken] = useState(TOKENS[2]); // USDT
+  // 初始代币按当前网络取（原生币 / USDT）
+  const tokens = getTokens();
+  const [fromToken, setFromToken] = useState(tokens[0]); // 原生币
+  const [toToken, setToToken] = useState(tokens[2]); // USDT
   const [amount, setAmount] = useState('');
   const [slippage, setSlippage] = useState('0.5');
   const [provider, setProvider] = useState('pancake');
@@ -51,9 +54,11 @@ export default function SwapTab() {
   /** 1 个卖出代币 ≈ 多少买入代币（解析失败时返回空） */
   function ratioText() {
     try {
-      const amountInWei = parseTokenAmount(amount, 18);
+      const amountInWei = parseTokenAmount(amount, fromToken.decimals);
       if (amountInWei === 0n) return ' ';
-      const ratio = (quote.amountOutWei * 10n ** 18n) / amountInWei;
+      // 人类可读比例的 18 位定点：out*10^inDec*10^18 / (in*10^outDec)（两侧小数位可能不同）
+      const ratio = (quote.amountOutWei * 10n ** BigInt(fromToken.decimals + 18))
+        / (amountInWei * 10n ** BigInt(toToken.decimals));
       return `1 ${fromToken.symbol} ≈ ${formatTokenAmount(ratio, 18, 10)} ${toToken.symbol}`;
     } catch {
       return ' ';
@@ -77,7 +82,7 @@ export default function SwapTab() {
   async function doQuote() {
     try {
       setQuoting(true);
-      const amountInWei = parseTokenAmount(amount, 18);
+      const amountInWei = parseTokenAmount(amount, fromToken.decimals);
       let amountOutWei;
       if (provider === 'pancake') {
         const amounts = await getAmountsOut(amountInWei, [pathAddress(fromToken), pathAddress(toToken)]);
@@ -102,7 +107,7 @@ export default function SwapTab() {
     // BNB 留一点 gas
     const text = fromToken.native && bal > 10n ** 16n
       ? formatTokenAmount(bal - 10n ** 16n)
-      : formatTokenAmount(bal);
+      : formatTokenAmount(bal, fromToken.decimals);
     setAmount(text);
   }
 
@@ -110,7 +115,7 @@ export default function SwapTab() {
     try {
       setBusy(true);
       const from = await assertSigningAccount(meta);
-      const amountInWei = parseTokenAmount(amount, 18);
+      const amountInWei = parseTokenAmount(amount, fromToken.decimals);
       const bal = tokenBalance(fromToken);
       if (bal === null || bal === undefined || bal < amountInWei) {
         throw new Error(tt('defi.swap.insufficientBalance', { symbol: fromToken.symbol }));
@@ -122,9 +127,9 @@ export default function SwapTab() {
       if (!(slip >= 0.01 && slip <= 50)) {
         throw new Error(tt('defi.swap.slippageRange'));
       }
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
+      const sign = await walletStore.getSigningCredential(address);
 
-      let target, data, valueWei, approveToken, routerLabel;
+      let target, data, valueWei, approveToken, routerLabel, method;
       if (provider === 'pancake') {
         const amountOutMin = applySlippage(quote.amountOutWei, slip);
         const built = pancake.buildSwap(fromToken, toToken, amountInWei, amountOutMin, address, pancake.defaultDeadline());
@@ -132,7 +137,8 @@ export default function SwapTab() {
         data = built.data;
         valueWei = built.valueWei;
         approveToken = built.approveToken;
-        routerLabel = 'PancakeSwap V2';
+        routerLabel = net().dexName;
+        method = built.method;
       } else {
         const src = fromToken.native ? oneInch.NATIVE_1INCH : fromToken.address;
         const dst = toToken.native ? oneInch.NATIVE_1INCH : toToken.address;
@@ -142,9 +148,10 @@ export default function SwapTab() {
         valueWei = built.valueWei;
         approveToken = fromToken.native ? null : fromToken.address;
         routerLabel = '1inch';
+        method = '1inch swap';
       }
 
-      const est = formatTokenAmount(quote.amountOutWei);
+      const est = formatTokenAmount(quote.amountOutWei, toToken.decimals);
       Alert.alert(
         tt('defi.swap.confirmTitle'),
         tt('defi.swap.confirmBody', {
@@ -153,6 +160,7 @@ export default function SwapTab() {
           to: toToken.symbol,
           est,
           router: routerLabel,
+          net: tt(`defi.network.${net().id}`),
           slip,
         }),
         [
@@ -169,7 +177,7 @@ export default function SwapTab() {
                     owner: address,
                     spender: target,
                     amountWei: amountInWei,
-                    mnemonic,
+                    sign,
                   });
                 }
                 const record = await recordDefiTx(walletStore, {
@@ -179,7 +187,7 @@ export default function SwapTab() {
                   status: tt('common.processing'),
                 });
                 const { txHash, receipt } = await signAndSendWithReceipt({
-                  to: target, data, valueWei, from, mnemonic,
+                  to: target, data, valueWei, from, sign, method,
                 });
                 const ok = !receipt || receipt.status === '0x1';
                 await walletStore.updateTransaction(record.id, {
@@ -212,18 +220,23 @@ export default function SwapTab() {
   return (
     <DefiGuard session={session} hasAccount={hasAccount}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <DefiHeader title="Swap" subtitle={tt('defi.swap.headerSubtitle')} />
+        <DefiHeader
+          title="Swap"
+          subtitle={network === 'sepolia'
+            ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
+            : tt('defi.swap.headerSubtitle')}
+        />
 
-        {/* 协议选择 */}
+        {/* 协议选择：1inch 仅在 BSC 开放（Sepolia 不提供聚合器报价） */}
         <View style={styles.providerRow}>
-          {['pancake', '1inch'].map((key) => (
+          {['pancake', ...(net().oneInch ? ['1inch'] : [])].map((key) => (
             <TouchableOpacity
               key={key}
               style={[styles.providerCell, provider === key && styles.providerCellActive]}
               onPress={() => setProvider(key)}
             >
               <Text style={[styles.providerText, provider === key && styles.providerTextActive]}>
-                {key === 'pancake' ? tt('defi.swap.providerPancake') : tt('defi.swap.providerOneInch')}
+                {key === 'pancake' ? `${net().dexName}${tt('defi.swap.onchainQuoteSuffix')}` : tt('defi.swap.providerOneInch')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -251,7 +264,7 @@ export default function SwapTab() {
             <Text style={styles.balanceText}>
               {tt('defi.swap.balance', {
                 amount: tokenBalance(fromToken) !== null && tokenBalance(fromToken) !== undefined
-                  ? formatTokenAmount(tokenBalance(fromToken)) : tt('common.loading'),
+                  ? formatTokenAmount(tokenBalance(fromToken), fromToken.decimals) : tt('common.loading'),
               })}
             </Text>
             <TouchableOpacity onPress={pickMax}>
@@ -277,7 +290,7 @@ export default function SwapTab() {
               <Text style={styles.tokenBtnChevron}>▾</Text>
             </TouchableOpacity>
             <Text style={styles.quoteText} numberOfLines={1}>
-              {quoting ? '…' : quote ? formatTokenAmount(quote.amountOutWei) : '0.0'}
+              {quoting ? '…' : quote ? formatTokenAmount(quote.amountOutWei, toToken.decimals) : '0.0'}
             </Text>
           </View>
           <Text style={styles.balanceText}>
@@ -321,7 +334,7 @@ export default function SwapTab() {
         </TouchableOpacity>
 
         <Text style={styles.tip}>
-          {tt('defi.swap.tip')}
+          {tt('defi.swap.tip', { native: net().nativeSymbol })}
         </Text>
 
         <TokenSheet

@@ -86,11 +86,22 @@ class WalletModule : Module() {
       val wallet = makeWallet(mnemonic, options?.get("passphrase") as? String)
 
       when (coin) {
-        "ethereum" -> signEthereumTransaction(wallet, params)
+        "ethereum" -> signEthereumTransaction(
+          ByteString.copyFrom(wallet.getKeyForCoin(CoinType.ETHEREUM).data()),
+          params
+        )
         "tron" -> signTronTransaction(wallet, params)
         "bitcoin" -> signBitcoinTransaction(wallet, params)
         else -> throw unsupportedCoin(coin)
       }
+    }
+
+    // 用私钥（hex）直接签名以太坊交易（私钥导入账号的签名通道），返回可广播的原始交易 hex
+    AsyncFunction("signTransactionWithPrivateKey") { coin: String, hex: String, params: Map<String, Any?> ->
+      if (coin != "ethereum") {
+        throw unsupportedCoin(coin)
+      }
+      signEthereumTransaction(ByteString.copyFrom(hexToBytes(hex)), params)
     }
 
     // 按账户序号派生地址（BIP44 路径 index 位），用于多账号切换
@@ -114,7 +125,7 @@ class WalletModule : Module() {
   /// 以太坊交易签名（Legacy 交易）
   /// 金额类字段接收 hex 字符串（可带 0x 前缀），JS 层负责把十进制转成 hex
   private fun signEthereumTransaction(
-    wallet: HDWallet,
+    privateKey: ByteString,
     params: Map<String, Any?>
   ): String {
     val chainId = hexValue(params, "chainId")
@@ -134,7 +145,7 @@ class WalletModule : Module() {
       .setGasPrice(ByteString.copyFrom(minimalBytes(gasPrice)))
       .setGasLimit(ByteString.copyFrom(minimalBytes(gasLimit)))
       .setToAddress(to)
-      .setPrivateKey(ByteString.copyFrom(wallet.getKeyForCoin(CoinType.ETHEREUM).data()))
+      .setPrivateKey(privateKey)
       .setTransaction(
         Ethereum.Transaction.newBuilder()
           .setTransfer(

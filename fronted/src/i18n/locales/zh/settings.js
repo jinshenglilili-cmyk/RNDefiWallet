@@ -17,4 +17,7 @@ export default {
   signOutConfirmOk: '退出',
   language: '语言 / Language',
   languageSection: '通用',
+  // DeFi 网络（BSC 主网 / Sepolia 测试网）
+  defiNetwork: 'DeFi 网络',
+  defiNetworkSection: 'DeFi',
 };

@@ -18,15 +18,22 @@ export default {
     // Transaction results / status
     txHashAlert: 'Tx Hash:\n%{hash}',
     revert: 'Contract execution failed (revert)',
+    // Testnet subtitle (Sepolia)
+    testnetSubtitle: '%{dex} · %{net} (Swap/LP contracts deployed by this project for testing)',
     // txSender errors
     noWalletCreated: 'Create a wallet first',
     privateKeyUnsupported: 'Private-key accounts cannot sign DeFi transactions. Switch to a mnemonic account',
+    // Signature confirmation dialog (unified in txSender)
+    signConfirmTitle: 'Confirm Signature',
+    signConfirmBody: 'Method: %{method}\nContract: %{to}\nValue: %{value} %{native}\nGas limit: %{gas}\nFrom: %{from}\n\nSigning happens locally on this device; your private key never leaves it.',
+    signConfirmBtn: 'Sign',
+    userCancel: 'Signature cancelled',
     approveFailed: 'Approval transaction failed. Check your BNB balance and retry',
   },
 
   swap: {
     headerSubtitle: 'PancakeSwap V2 · 1inch · BSC',
-    providerPancake: 'PancakeSwap V2 (on-chain quote)',
+    onchainQuoteSuffix: ' (on-chain quote)',
     providerOneInch: '1inch aggregator (experimental)',
     oneInchUnavailable: '1inch quote unavailable (needs network or API key). Use PancakeSwap instead',
     sell: 'Sell',
@@ -36,7 +43,7 @@ export default {
     quoteStale: 'Quote expired, please refresh',
     slippageRange: 'Slippage must be between 0.01% and 50%',
     confirmTitle: 'Confirm Swap',
-    confirmBody: '%{amount} %{from} → ≥%{est} %{to}\nProtocol: %{router} (BSC)\nSlippage: %{slip}%',
+    confirmBody: '%{amount} %{from} → ≥%{est} %{to}\nProtocol: %{router} (%{net})\nSlippage: %{slip}%',
     success: 'Swap Successful',
     failed: 'Swap Failed',
     cannotSwap: 'Cannot Swap',
@@ -46,7 +53,7 @@ export default {
     btnQuoting: 'Getting quote…',
     btnSwap: 'Swap',
     btnEnterAmount: 'Enter an amount to get a quote',
-    tip: 'Swaps execute on BSC and need a small amount of BNB for gas. PancakeSwap V2 fee is 0.25%. 1inch is an aggregated router (experimental); when unreachable, you will be prompted to use PancakeSwap. Approval is only sent when the allowance is insufficient.',
+    tip: 'Swaps execute on-chain and need a small amount of %{native} for gas. PancakeSwap V2 fee is 0.25%. 1inch is an aggregated router (experimental); when unreachable, you will be prompted to use PancakeSwap. Approval is only sent when the allowance is insufficient.',
   },
 
   lp: {
@@ -57,15 +64,15 @@ export default {
     loadingPools: 'Loading pools…',
     noPools: 'No pools available or failed to load. Pull down to retry',
     myShare: 'My share %{share}%',
-    poolReserve: 'Pool: %{bnb} BNB + %{token} %{symbol}',
+    poolReserve: 'Pool: %{bnb} %{native} + %{token} %{symbol}',
     myLp: 'My LP: %{amount}',
-    poolHint: 'Tap to add liquidity (BNB + %{symbol})',
+    poolHint: 'Tap to add liquidity (%{native} + %{symbol})',
     addSection: 'Add Liquidity',
     removeSection: 'Remove Liquidity',
     tokenAmountPlaceholder: '%{symbol} amount',
     pairHint: 'Est. paired: %{hint}',
     pairHintAuto: 'Calculated automatically after entering an amount',
-    pairHintValue: ' %{amount} BNB',
+    pairHintValue: ' %{amount} %{native}',
     tokenBalance: 'Token balance: %{amount}',
     lpAmountPlaceholder: 'LP amount',
     // Busy texts
@@ -81,10 +88,10 @@ export default {
     removeErrorTitle: 'Remove Liquidity Failed',
     // Validation errors
     needTokenAmount: 'Enter a token amount',
-    insufficientBnb: 'Insufficient BNB balance (incl. 0.01 BNB gas reserve)',
+    insufficientBnb: 'Insufficient %{native} balance (incl. 0.01 %{native} gas reserve)',
     needLpAmount: 'Enter an LP amount to remove',
     lpExceeded: 'Exceeds your LP balance',
-    tip: 'Adding pairs BNB automatically at the current pool ratio; removing returns both tokens by LP share. Minimum amounts include 0.5% slippage protection. The first action needs an approval (approve) transaction.',
+    tip: 'Adding pairs %{native} automatically at the current pool ratio; removing returns both tokens by LP share. Minimum amounts include 0.5% slippage protection. The first action needs an approval (approve) transaction.',
   },
 
   lend: {
@@ -113,13 +120,13 @@ export default {
     amountPlaceholder: '%{symbol} amount',
     currentDeposit: 'Current deposit: %{amount} %{symbol}',
     sheetTip: 'Depositing mints aTokens (interest-bearing). Withdrawing burns aTokens to redeem your assets.',
-    // Busy / step texts
-    stepWrap: 'Wrapping BNB → WBNB…',
+    // Busy / step texts (native/wrapped follow the network: BNB/WBNB or ETH/WETH)
+    stepWrap: 'Wrapping %{native} → %{wrapped}…',
     stepApprove: 'Approving %{symbol}…',
     stepSupply: 'Supplying to Aave…',
     stepWithdraw: 'Withdrawing…',
-    stepWithdrawNative: 'Withdrawing WBNB…',
-    stepUnwrap: 'Unwrapping WBNB → BNB…',
+    stepWithdrawNative: 'Withdrawing %{wrapped}…',
+    stepUnwrap: 'Unwrapping %{wrapped} → %{native}…',
     recordSupply: 'Supply %{amount} %{symbol}',
     recordWithdraw: 'Withdraw %{amount} %{symbol}',
     // Results
@@ -130,15 +137,21 @@ export default {
     // Validation errors
     needAmount: 'Enter an amount',
     insufficientBalance: 'Insufficient %{symbol} balance',
-    insufficientBalanceNative: 'Insufficient %{symbol} balance (0.01 BNB gas reserved)',
+    insufficientBalanceNative: 'Insufficient %{symbol} balance (0.01 %{native} gas reserved)',
     needWithdrawAmount: 'Enter a withdrawal amount',
     exceedsDeposit: 'Exceeds current deposit',
-    tip: 'Deposits earn interest via Aave V3 (aToken amount grows over time). BNB is wrapped to WBNB on deposit and unwrapped on withdrawal. Borrowing is not available yet; debt is display only. The first deposit of an asset needs an approval (approve) transaction. Deposits carry liquidation risk — watch your health factor.',
+    tip: 'Deposits earn interest via Aave V3 (aToken amount grows over time). %{native} is wrapped to %{wrapped} on deposit and unwrapped on withdrawal. Borrowing is not available yet; debt is display only. The first deposit of an asset needs an approval (approve) transaction. Deposits carry liquidation risk — watch your health factor.',
   },
 
   rpc: {
     httpError: 'RPC request failed: HTTP %{status}',
     rpcError: 'RPC %{method} error: %{message}',
+  },
+
+  // DeFi network names (header badge / subtitle / confirm dialog)
+  network: {
+    bsc: 'BSC',
+    sepolia: 'Sepolia Testnet',
   },
 
   pancake: {

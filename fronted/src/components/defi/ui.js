@@ -5,7 +5,8 @@ import { useRouter } from 'expo-router';
 
 import { useTheme } from '@/utils/theme';
 import { t as tt } from '@/i18n';
-import { TOKENS } from '@/utils/defi/tokens';
+import { useDefiNetwork } from '@/stores/defiNetwork';
+import { getTokens } from '@/utils/defi/tokens';
 import { formatTokenAmount } from '@/utils/defi/format';
 
 /** 通用守卫：未登录 / 没有钱包账号时渲染引导页（有账号渲染 children） */
@@ -49,12 +50,25 @@ export function DefiGuard({ session, hasAccount, children }) {
   return children;
 }
 
-/** 页面大标题（对齐钱包 tab 的头部样式） */
+/** 页面大标题（对齐钱包 tab 的头部样式）；测试网时标题旁带网络徽标 */
 export function DefiHeader({ title, subtitle }) {
   const t = useTheme();
+  const network = useDefiNetwork((s) => s.network);
+  const isTestnet = network === 'sepolia';
   return (
     <View style={{ paddingTop: 58, marginBottom: 14 }}>
-      <Text style={{ fontSize: 26, fontWeight: '900', color: t.accent }}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ fontSize: 26, fontWeight: '900', color: t.accent }}>{title}</Text>
+        {isTestnet ? (
+          <Text style={{
+            fontSize: 10, fontWeight: '700', color: t.orange,
+            borderWidth: 1, borderColor: t.orange, borderRadius: 8,
+            paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8,
+          }}>
+            {tt('defi.network.sepolia')}
+          </Text>
+        ) : null}
+      </View>
       {subtitle ? (
         <Text style={{ fontSize: 12, color: t.secondaryText, marginTop: 4 }}>{subtitle}</Text>
       ) : null}
@@ -70,7 +84,7 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
   const t = useTheme();
   function balanceOfToken(token) {
     if (token.native) return formatTokenAmount(nativeBalance ?? 0n);
-    return formatTokenAmount(balances?.[token.symbol] ?? 0n);
+    return formatTokenAmount(balances?.[token.symbol] ?? 0n, token.decimals);
   }
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -84,7 +98,7 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
           </Text>
           <View style={{ width: 60 }} />
         </View>
-        {TOKENS.filter((tk) => tk.symbol !== excludeSymbol).map((token) => (
+        {getTokens().filter((tk) => tk.symbol !== excludeSymbol && !tk.wrapped).map((token) => (
           <TouchableOpacity
             key={token.symbol}
             style={{
@@ -119,12 +133,13 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
   );
 }
 
-/** 写一条 DeFi 交易记录（复用钱包页的交易历史，chain = bsc） */
+/** 写一条 DeFi 交易记录（复用钱包页的交易历史；chain 按当前 DeFi 网络） */
 export async function recordDefiTx(walletStore, record) {
+  const network = useDefiNetwork.getState().network;
   return walletStore.addTransaction({
     type: 'defi',
-    chain: 'bsc',
-    chainSymbol: 'BNB',
+    chain: network === 'sepolia' ? 'sepolia' : 'bsc',
+    chainSymbol: network === 'sepolia' ? 'ETH' : 'BNB',
     ...record,
   });
 }

@@ -11,14 +11,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { t as tt } from '@/i18n';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { WBNB, tokenBySymbol } from '@/utils/defi/tokens';
+import { getTokens, tokenBySymbol, wrappedAddress, net } from '@/utils/defi/tokens';
 import * as pancake from '@/utils/defi/pancake';
 import { balanceOf } from '@/utils/defi/erc20';
 import { formatTokenAmount } from '@/utils/defi/format';
 import { DefiGuard, DefiHeader } from '@/components/defi/ui';
 
-/** 候选交易对：WBNB 侧 + 代币侧（运行时经 Factory.getPair 确认存在才展示） */
-const POOL_SYMBOLS = ['USDT', 'USDC', 'CAKE', 'ETH', 'BTCB'];
+/** 候选交易对的代币侧（按当前网络代币清单推导，排除原生币与 wrapped 侧；运行时经 Factory.getPair 确认存在才展示） */
+const POOL_SYMBOLS = () => getTokens().filter((t) => !t.native && !t.wrapped).map((t) => t.symbol);
 
 /**
  * LP Tab：PancakeSwap V2 流动性池子列表
@@ -28,8 +28,12 @@ const POOL_SYMBOLS = ['USDT', 'USDC', 'CAKE', 'ETH', 'BTCB'];
 export default function LpTab() {
   const t = useTheme();
   const router = useRouter();
-  const { session, hasAccount, address } = useBscWallet();
+  const { session, hasAccount, address, network, refresh } = useBscWallet();
   const styles = makeStyles(t);
+
+  const headerSubtitle = network === 'sepolia'
+    ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
+    : tt('defi.lp.headerSubtitle');
 
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -43,9 +47,9 @@ export default function LpTab() {
     setLoading(true);
     try {
       const results = await Promise.allSettled(
-        POOL_SYMBOLS.map(async (sym) => {
+        POOL_SYMBOLS().map(async (sym) => {
           const token = tokenBySymbol(sym);
-          const pair = await pancake.getPair(WBNB, token.address);
+          const pair = await pancake.getPair(wrappedAddress(), token.address);
           if (!pair || BigInt(pair) === 0n) return null;
           const [[t0, t1], [res0, res1], totalSupply] = await Promise.all([
             pancake.pairTokens(pair),
@@ -62,6 +66,7 @@ export default function LpTab() {
           } catch {}
           return {
             symbol: sym,
+            decimals: token.decimals,
             pair,
             reserveToken,
             reserveBnb,
@@ -115,7 +120,7 @@ export default function LpTab() {
           ListHeaderComponent={
             <DefiHeader
               title={tt('defi.lp.headerTitle')}
-              subtitle={tt('defi.lp.headerSubtitle')}
+              subtitle={headerSubtitle}
             />
           }
           ListEmptyComponent={
@@ -133,7 +138,7 @@ export default function LpTab() {
               }
             >
               <View style={styles.poolTopRow}>
-                <Text style={styles.poolName}>🥞 {item.symbol} / BNB</Text>
+                <Text style={styles.poolName}>🥞 {item.symbol} / {net().nativeSymbol}</Text>
                 {item.myLp > 0n ? (
                   <Text style={styles.myShareTag}>
                     {tt('defi.lp.myShare', { share: Number(item.share) / 100 })}
@@ -141,14 +146,14 @@ export default function LpTab() {
                 ) : null}
               </View>
               <Text style={styles.poolReserve}>
-                {tt('defi.lp.poolReserve', { bnb: formatTokenAmount(item.reserveBnb), token: formatTokenAmount(item.reserveToken), symbol: item.symbol })}
+                {tt('defi.lp.poolReserve', { bnb: formatTokenAmount(item.reserveBnb), token: formatTokenAmount(item.reserveToken, item.decimals), symbol: item.symbol, native: net().nativeSymbol })}
               </Text>
               {item.myLp > 0n ? (
                 <Text style={styles.poolMine}>
                   {tt('defi.lp.myLp', { amount: formatTokenAmount(item.myLp, 18, 8) })}
                 </Text>
               ) : (
-                <Text style={styles.poolHint}>{tt('defi.lp.poolHint', { symbol: item.symbol })}</Text>
+                <Text style={styles.poolHint}>{tt('defi.lp.poolHint', { symbol: item.symbol, native: net().nativeSymbol })}</Text>
               )}
             </TouchableOpacity>
           )}

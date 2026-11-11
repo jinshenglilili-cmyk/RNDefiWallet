@@ -7,13 +7,14 @@
 import { create } from 'zustand';
 
 import * as walletStore from '@/utils/walletStore';
-import { getBalance } from '@/utils/rpc';
+// 余额走 DeFi 网络开关（BSC → BNB，Sepolia → 测试网 ETH），与 DeFi tab 一致
+import { getBalance } from '@/utils/defi/bscRpc';
 import { formatEther } from '@/utils/format';
 
 export const useWalletStore = create((set) => ({
   /** 钱包元数据 { accounts, names?, types?, current }；null = 尚无钱包 */
   meta: null,
-  /** 当前账号 ETH 余额（字符串，已格式化） */
+  /** 当前账号余额（字符串，已格式化；链随 DeFi 网络开关：BSC 主网 BNB / Sepolia ETH） */
   balance: null,
   /** 启动后第一次 load 是否完成（避免闪空状态） */
   ready: false,

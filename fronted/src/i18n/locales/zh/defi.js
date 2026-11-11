@@ -18,15 +18,22 @@ export default {
     // 交易结果 / 状态
     txHashAlert: '交易哈希：\n%{hash}',
     revert: '合约执行失败（revert）',
+    // 测试网副标题（Sepolia）
+    testnetSubtitle: '%{dex} · %{net}（Swap/LP 为本项目部署的测试合约）',
     // txSender 错误
     noWalletCreated: '请先创建钱包',
     privateKeyUnsupported: '导入私钥的账号暂不支持 DeFi 交易，请切换到助记词账号',
+    // 签名确认弹框（txSender 统一弹出）
+    signConfirmTitle: '签名确认',
+    signConfirmBody: '方法：%{method}\n合约：%{to}\n发送：%{value} %{native}\ngas 上限：%{gas}\n发起账号：%{from}\n\n签名前请确认以上内容，签名在本地完成，私钥不会离开设备。',
+    signConfirmBtn: '确认签名',
+    userCancel: '已取消签名',
     approveFailed: '授权交易失败，请检查 BNB 余额后重试',
   },
 
   swap: {
     headerSubtitle: 'PancakeSwap V2 · 1inch · BSC 链',
-    providerPancake: 'PancakeSwap V2（链上报价）',
+    onchainQuoteSuffix: '（链上报价）',
     providerOneInch: '1inch 聚合器（实验）',
     oneInchUnavailable: '1inch 报价不可用（需网络或 API Key），可改用 PancakeSwap',
     sell: '卖出',
@@ -36,7 +43,7 @@ export default {
     quoteStale: '报价已过期，请重新获取',
     slippageRange: '滑点需在 0.01% ~ 50% 之间',
     confirmTitle: '确认兑换',
-    confirmBody: '%{amount} %{from} → ≥%{est} %{to}\n协议：%{router}（BSC）\n滑点：%{slip}%',
+    confirmBody: '%{amount} %{from} → ≥%{est} %{to}\n协议：%{router}（%{net}）\n滑点：%{slip}%',
     success: '兑换成功',
     failed: '兑换失败',
     cannotSwap: '无法兑换',
@@ -46,7 +53,7 @@ export default {
     btnQuoting: '获取报价…',
     btnSwap: '兑换',
     btnEnterAmount: '输入金额以获取报价',
-    tip: '说明：兑换在 BSC 链上执行，需要少量 BNB 作 gas；PancakeSwap V2 手续费 0.25%。1inch 为聚合路由（实验功能），网络不可达时会提示改用 PancakeSwap。授权只需在额度不足时发起。',
+    tip: '说明：兑换在当前链上执行，需要少量 %{native} 作 gas；PancakeSwap V2 手续费 0.25%。1inch 为聚合路由（实验功能），网络不可达时会提示改用 PancakeSwap。授权只需在额度不足时发起。',
   },
 
   lp: {
@@ -57,15 +64,15 @@ export default {
     loadingPools: '加载池子中…',
     noPools: '没有可用池子或加载失败，下拉重试',
     myShare: '我的份额 %{share}%',
-    poolReserve: '池子：%{bnb} BNB + %{token} %{symbol}',
+    poolReserve: '池子：%{bnb} %{native} + %{token} %{symbol}',
     myLp: '我的 LP：%{amount}',
-    poolHint: '点击添加流动性（BNB + %{symbol}）',
+    poolHint: '点击添加流动性（%{native} + %{symbol}）',
     addSection: '添加流动性',
     removeSection: '移除流动性',
     tokenAmountPlaceholder: '%{symbol} 数量',
     pairHint: '预计搭配：%{hint}',
     pairHintAuto: '输入代币数量后自动计算',
-    pairHintValue: ' %{amount} BNB',
+    pairHintValue: ' %{amount} %{native}',
     tokenBalance: '代币余额：%{amount}',
     lpAmountPlaceholder: 'LP 数量',
     // 操作流程 busy 文案
@@ -81,10 +88,10 @@ export default {
     removeErrorTitle: '移除流动性失败',
     // 校验错误
     needTokenAmount: '请输入代币数量',
-    insufficientBnb: 'BNB 余额不足（含 gas 预留 0.01 BNB）',
+    insufficientBnb: '%{native} 余额不足（含 gas 预留 0.01 %{native}）',
     needLpAmount: '请输入要移除的 LP 数量',
     lpExceeded: '超过持有的 LP 数量',
-    tip: '添加按当前池子比例自动搭配 BNB；移除按 LP 份额取回两种代币。数量下限按 0.5% 滑点保护。首次操作需要一笔授权交易（approve）。',
+    tip: '添加按当前池子比例自动搭配 %{native}；移除按 LP 份额取回两种代币。数量下限按 0.5% 滑点保护。首次操作需要一笔授权交易（approve）。',
   },
 
   lend: {
@@ -113,13 +120,13 @@ export default {
     amountPlaceholder: '%{symbol} 数量',
     currentDeposit: '当前存款：%{amount} %{symbol}',
     sheetTip: '存入后获得对应 aToken（利息凭证）。取回时销毁 aToken 换回资产。',
-    // 操作流程 busy / 步骤文案
-    stepWrap: '包装 BNB → WBNB…',
+    // 操作流程 busy / 步骤文案（native/wrapped 随网络变化：BNB/WBNB 或 ETH/WETH）
+    stepWrap: '包装 %{native} → %{wrapped}…',
     stepApprove: '授权 %{symbol}…',
     stepSupply: '存入 Aave…',
     stepWithdraw: '取回中…',
-    stepWithdrawNative: '取回 WBNB…',
-    stepUnwrap: '解包 WBNB → BNB…',
+    stepWithdrawNative: '取回 %{wrapped}…',
+    stepUnwrap: '解包 %{wrapped} → %{native}…',
     recordSupply: '存入 %{amount} %{symbol}',
     recordWithdraw: '取回 %{amount} %{symbol}',
     // 结果
@@ -130,15 +137,21 @@ export default {
     // 校验错误
     needAmount: '请输入数量',
     insufficientBalance: '%{symbol} 余额不足',
-    insufficientBalanceNative: '%{symbol} 余额不足（已预留 0.01 BNB gas）',
+    insufficientBalanceNative: '%{symbol} 余额不足（已预留 0.01 %{native} gas）',
     needWithdrawAmount: '请输入取回数量',
     exceedsDeposit: '超过当前存款数量',
-    tip: '存款通过 Aave V3 获得利息（aToken 数量随时间增长）。BNB 存入会自动包装为 WBNB，取回后自动解包。借款功能暂未开放；负债仅作展示。首次存入某资产需要一笔授权交易（approve）。存款有被清算风险，请关注健康因子。',
+    tip: '存款通过 Aave V3 获得利息（aToken 数量随时间增长）。%{native} 存入会自动包装为 %{wrapped}，取回后自动解包。借款功能暂未开放；负债仅作展示。首次存入某资产需要一笔授权交易（approve）。存款有被清算风险，请关注健康因子。',
   },
 
   rpc: {
     httpError: 'RPC 请求失败：HTTP %{status}',
     rpcError: 'RPC %{method} 出错：%{message}',
+  },
+
+  // DeFi 网络名称（标题徽标 / 副标题 / 确认弹窗）
+  network: {
+    bsc: 'BSC 链',
+    sepolia: 'Sepolia 测试网',
   },
 
   pancake: {

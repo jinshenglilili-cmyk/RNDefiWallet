@@ -219,6 +219,16 @@ export async function getSigningMnemonic(address, index) {
   return getMnemonic();
 }
 
+/**
+ * 取账号签名凭据：私钥导入账号返回 { privateKey }，助记词账号返回 { mnemonic }
+ * 交易签名时按凭据类型走原生 signTransactionWithPrivateKey / signTransaction
+ */
+export async function getSigningCredential(address) {
+  const pk = address ? await getPrivateKey(address) : null;
+  if (pk) return { privateKey: pk };
+  return { mnemonic: await getSigningMnemonic(address) };
+}
+
 /** 切换当前账号 */
 export async function switchAccount(index) {
   const meta = await getMeta();

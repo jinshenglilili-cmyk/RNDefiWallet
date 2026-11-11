@@ -6,6 +6,7 @@ import screenOptions from '@/options/screenOptions';
 import { SplashScreenController } from '@/utils/splash';
 import { t as tt, useI18nLocale } from '@/i18n';
 import { useWalletStore } from '@/stores/wallet';
+import { useDefiNetwork } from '@/stores/defiNetwork';
 
 export default function Layout() {
   // 订阅语言：切换语言时重新渲染，导航栏标题随语言刷新
@@ -14,6 +15,8 @@ export default function Layout() {
   // 避免必须先进入钱包 tab 才加载（否则深链接/直接切 tab 会误判「没有钱包」）
   useEffect(() => {
     useWalletStore.getState().load();
+    // DeFi 网络选择（BSC / Sepolia）持久化，启动时恢复
+    useDefiNetwork.getState().load();
   }, []);
   function CloseButton() {
     const router = useRouter();
