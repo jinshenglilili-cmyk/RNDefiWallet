@@ -52,6 +52,8 @@ export default {
   lp: {
     headerTitle: 'LP Liquidity',
     headerSubtitle: 'PancakeSwap V2 · BSC · Add / Remove Liquidity',
+    // Detail page nav title (overridden in-page by "PAIR / BNB")
+    detailTitle: 'Add / Remove Liquidity',
     loadingPools: 'Loading pools…',
     noPools: 'No pools available or failed to load. Pull down to retry',
     myShare: 'My share %{share}%',
@@ -88,6 +90,8 @@ export default {
   lend: {
     headerTitle: 'Lending',
     headerSubtitle: 'Aave V3 · BSC · Earn interest',
+    // Detail page nav title (overridden in-page by "ASSET · Aave V3")
+    detailTitle: 'Supply / Withdraw',
     // Account overview
     accountOverview: 'Account Overview',
     totalCollateral: 'Total Collateral',
@@ -96,8 +100,7 @@ export default {
     hfHint: 'A health factor below 1 risks liquidation (current liquidation threshold %{threshold}%)',
     loadingAccount: 'Loading account data…',
     accountLoadFailed: 'Failed to load account data. Pull down to retry',
-    // Deposit list
-    myDeposits: 'My Deposits',
+    // Deposit list (merged asset list: wallet balance + existing deposit amount; loading/no-deposit texts reused by the detail page)
     loadingDeposits: 'Loading deposits…',
     noDeposits: 'No deposits yet. Tap an asset below to deposit and start earning.',
     supplyAssets: 'Assets to Supply',

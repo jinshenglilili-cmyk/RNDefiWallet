@@ -1,49 +1,39 @@
 import { useCallback, useState } from 'react';
 import {
-  Alert,
   FlatList,
   RefreshControl,
-  ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { t as tt } from '@/i18n';
-import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { PANCAKE_ROUTER, WBNB, tokenBySymbol } from '@/utils/defi/tokens';
+import { WBNB, tokenBySymbol } from '@/utils/defi/tokens';
 import * as pancake from '@/utils/defi/pancake';
 import { balanceOf } from '@/utils/defi/erc20';
-import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
-import { assertSigningAccount, ensureApproval, signAndSendWithReceipt } from '@/utils/defi/txSender';
-import { DefiGuard, DefiHeader, recordDefiTx } from '@/components/defi/ui';
+import { formatTokenAmount } from '@/utils/defi/format';
+import { DefiGuard, DefiHeader } from '@/components/defi/ui';
 
 /** 候选交易对：WBNB 侧 + 代币侧（运行时经 Factory.getPair 确认存在才展示） */
 const POOL_SYMBOLS = ['USDT', 'USDC', 'CAKE', 'ETH', 'BTCB'];
 
 /**
- * LP Tab：PancakeSwap V2 添加 / 移除流动性（BNB 侧走 Router 的 ETH 接口）
+ * LP Tab：PancakeSwap V2 流动性池子列表
  * - 池子列表：交易对、我的 LP 份额、池子规模（Factory/Pair 链上实时读）
- * - 添加：输入代币数量，按储备比例自动搭配 BNB，先授权 Router 再 addLiquidityETH
- * - 移除：输入 LP 数量（支持百分比），先授权 LP 再 removeLiquidityETH
+ * - 点击池子卡片 → push 详情页（/defi/lp/[symbol]）做添加 / 移除流动性
  */
 export default function LpTab() {
   const t = useTheme();
-  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useBscWallet();
+  const router = useRouter();
+  const { session, hasAccount, address } = useBscWallet();
   const styles = makeStyles(t);
 
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // 仅手动下拉时转圈（避免进页时刷新圈顶开内容导致闪动）
-  const [selected, setSelected] = useState(null); // 选中的池子对象
-  const [tokenAmount, setTokenAmount] = useState('');
-  const [lpAmount, setLpAmount] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [busyText, setBusyText] = useState('');
 
   const loadPools = useCallback(async () => {
     if (!address) {
@@ -72,11 +62,9 @@ export default function LpTab() {
           } catch {}
           return {
             symbol: sym,
-            token,
             pair,
             reserveToken,
             reserveBnb,
-            totalSupply,
             myLp,
             share: totalSupply > 0n ? (myLp * 10000n) / totalSupply : 0n, // 万分比
           };
@@ -106,129 +94,6 @@ export default function LpTab() {
       await loadPools();
     } finally {
       setRefreshing(false);
-    }
-  }
-
-  async function handleAdd(pool) {
-    try {
-      setBusy(true);
-      const from = await assertSigningAccount(meta);
-      const tokenAmt = parseTokenAmount(tokenAmount, 18);
-      if (tokenAmt <= 0n) throw new Error(tt('defi.lp.needTokenAmount'));
-      // Router.quote 按储备比例算需要的 BNB（+1 防止整数截断导致 dust 不足）
-      const bnbNeeded = (await pancake.quote(tokenAmt, pool.reserveToken, pool.reserveBnb)) + 1n;
-      const gasReserve = 10n ** 16n; // 预留 0.01 BNB 作 gas
-      if (bnbBalance === null || bnbBalance < bnbNeeded + gasReserve) {
-        throw new Error(tt('defi.lp.insufficientBnb'));
-      }
-      const tokenMin = applySlippage(tokenAmt, 0.5);
-      const bnbMin = applySlippage(bnbNeeded, 0.5);
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
-
-      setBusyText(tt('defi.lp.busyApprovingRouter'));
-      await ensureApproval({
-        tokenAddress: pool.token.address,
-        owner: address,
-        spender: PANCAKE_ROUTER,
-        amountWei: tokenAmt,
-        mnemonic,
-      });
-
-      setBusyText(tt('defi.lp.busySigning'));
-      const data = pancake.addLiquidityETHData(
-        pool.token.address, tokenAmt, tokenMin, bnbMin, address, pancake.defaultDeadline()
-      );
-      const record = await recordDefiTx(walletStore, {
-        from: address,
-        to: pool.pair,
-        amount: `${tokenAmount} ${pool.symbol} + ${formatTokenAmount(bnbNeeded)} BNB`,
-        status: tt('common.processing'),
-      });
-      const { txHash, receipt } = await signAndSendWithReceipt({
-        to: PANCAKE_ROUTER, data, valueWei: bnbNeeded, from, mnemonic,
-      });
-      const ok = !receipt || receipt.status === '0x1';
-      await walletStore.updateTransaction(record.id, {
-        status: ok ? tt('common.success') : tt('common.failed'),
-        txHash,
-        error: ok ? undefined : tt('defi.common.revert'),
-      });
-      Alert.alert(ok ? tt('defi.lp.addSuccess') : tt('defi.lp.addFailed'), tt('defi.common.txHashAlert', { hash: txHash }));
-      setSelected(null);
-      setTokenAmount('');
-      await loadPools();
-      refresh();
-    } catch (err) {
-      Alert.alert(tt('defi.lp.addErrorTitle'), String(err.message ?? err));
-    } finally {
-      setBusy(false);
-      setBusyText('');
-    }
-  }
-
-  async function handleRemove(pool) {
-    try {
-      setBusy(true);
-      const from = await assertSigningAccount(meta);
-      const liquidity = parseTokenAmount(lpAmount, 18);
-      if (liquidity <= 0n) throw new Error(tt('defi.lp.needLpAmount'));
-      if (liquidity > pool.myLp) throw new Error(tt('defi.lp.lpExceeded'));
-      // 按份额预估取回量，乘滑点作下限
-      const tokenOut = (liquidity * pool.reserveToken) / pool.totalSupply;
-      const bnbOut = (liquidity * pool.reserveBnb) / pool.totalSupply;
-      const tokenMin = applySlippage(tokenOut, 0.5);
-      const bnbMin = applySlippage(bnbOut, 0.5);
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
-
-      setBusyText(tt('defi.lp.busyApprovingLp'));
-      await ensureApproval({
-        tokenAddress: pool.pair,
-        owner: address,
-        spender: PANCAKE_ROUTER,
-        amountWei: liquidity,
-        mnemonic,
-      });
-
-      setBusyText(tt('defi.lp.busySigning'));
-      const data = pancake.removeLiquidityETHData(
-        pool.token.address, liquidity, tokenMin, bnbMin, address, pancake.defaultDeadline()
-      );
-      const record = await recordDefiTx(walletStore, {
-        from: address,
-        to: pool.pair,
-        amount: `${lpAmount} LP (${pool.symbol}/BNB)`,
-        status: tt('common.processing'),
-      });
-      const { txHash, receipt } = await signAndSendWithReceipt({
-        to: PANCAKE_ROUTER, data, valueWei: 0n, from, mnemonic,
-      });
-      const ok = !receipt || receipt.status === '0x1';
-      await walletStore.updateTransaction(record.id, {
-        status: ok ? tt('common.success') : tt('common.failed'),
-        txHash,
-        error: ok ? undefined : tt('defi.common.revert'),
-      });
-      Alert.alert(ok ? tt('defi.lp.removeSuccess') : tt('defi.lp.removeFailed'), tt('defi.common.txHashAlert', { hash: txHash }));
-      setSelected(null);
-      setLpAmount('');
-      await loadPools();
-      refresh();
-    } catch (err) {
-      Alert.alert(tt('defi.lp.removeErrorTitle'), String(err.message ?? err));
-    } finally {
-      setBusy(false);
-      setBusyText('');
-    }
-  }
-
-  /** 添加数量 → 预计搭配的 BNB 文案 */
-  function pairHintText(pool) {
-    if (!tokenAmount || Number(tokenAmount) <= 0) return tt('defi.lp.pairHintAuto');
-    try {
-      const amt = parseTokenAmount(tokenAmount, 18);
-      return tt('defi.lp.pairHintValue', { amount: formatTokenAmount((amt * pool.reserveBnb) / pool.reserveToken) });
-    } catch {
-      return ' —';
     }
   }
 
@@ -262,11 +127,10 @@ export default function LpTab() {
             <TouchableOpacity
               style={styles.poolCard}
               activeOpacity={0.7}
-              onPress={() => {
-                setSelected(item);
-                setTokenAmount('');
-                setLpAmount('');
-              }}
+              // push 详情页做添加 / 移除流动性（带导航栏，返回可回列表）
+              onPress={() =>
+                router.push({ pathname: '/defi/lp/[symbol]', params: { symbol: item.symbol } })
+              }
             >
               <View style={styles.poolTopRow}>
                 <Text style={styles.poolName}>🥞 {item.symbol} / BNB</Text>
@@ -289,89 +153,6 @@ export default function LpTab() {
             </TouchableOpacity>
           )}
         />
-
-        {/* 池子操作 sheet（添加 + 移除两个动作） */}
-        {selected ? (
-          <View style={styles.sheetMask}>
-            <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 40 }}>
-              <View style={styles.sheetHeader}>
-                <TouchableOpacity onPress={() => setSelected(null)}>
-                  <Text style={styles.sheetClose}>✕</Text>
-                </TouchableOpacity>
-                <Text style={styles.sheetTitle}>{selected.symbol} / BNB</Text>
-                <View style={{ width: 40 }} />
-              </View>
-
-              <Text style={styles.sectionTitle}>{tt('defi.lp.addSection')}</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.input}
-                  value={tokenAmount}
-                  onChangeText={setTokenAmount}
-                  placeholder={tt('defi.lp.tokenAmountPlaceholder', { symbol: selected.symbol })}
-                  placeholderTextColor={t.secondaryText}
-                  keyboardType="decimal-pad"
-                />
-                <Text style={styles.inputSuffix}>{selected.symbol}</Text>
-              </View>
-              <Text style={styles.pairHint}>{tt('defi.lp.pairHint', { hint: pairHintText(selected) })}</Text>
-              <Text style={styles.balanceText}>
-                {tt('defi.lp.tokenBalance', { amount: formatTokenAmount(balances?.[selected.symbol] ?? 0n) })}
-              </Text>
-              <TouchableOpacity
-                style={[styles.actionButton, (!tokenAmount || busy) && styles.disabled]}
-                disabled={!tokenAmount || busy}
-                onPress={() => handleAdd(selected)}
-              >
-                <Text style={styles.actionText}>{busy ? busyText : tt('defi.lp.addSection')}</Text>
-              </TouchableOpacity>
-
-              {selected.myLp > 0n ? (
-                <>
-                  <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{tt('defi.lp.removeSection')}</Text>
-                  <View style={styles.percentRow}>
-                    {[25, 50, 75, 100].map((p) => (
-                      <TouchableOpacity
-                        key={p}
-                        style={styles.percentCell}
-                        onPress={() =>
-                          setLpAmount(formatTokenAmount((selected.myLp * BigInt(p)) / 100n, 18, 8))
-                        }
-                      >
-                        <Text style={styles.percentText}>{p}%</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <View style={styles.inputRow}>
-                    <TextInput
-                      style={styles.input}
-                      value={lpAmount}
-                      onChangeText={setLpAmount}
-                      placeholder={tt('defi.lp.lpAmountPlaceholder')}
-                      placeholderTextColor={t.secondaryText}
-                      keyboardType="decimal-pad"
-                    />
-                    <Text style={styles.inputSuffix}>LP</Text>
-                  </View>
-                  <Text style={styles.balanceText}>
-                    {tt('defi.lp.myLp', { amount: formatTokenAmount(selected.myLp, 18, 8) })}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.removeButton, (!lpAmount || busy) && styles.disabled]}
-                    disabled={!lpAmount || busy}
-                    onPress={() => handleRemove(selected)}
-                  >
-                    <Text style={styles.actionText}>{busy ? busyText : tt('defi.lp.removeSection')}</Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
-
-              <Text style={styles.tip}>
-                {tt('defi.lp.tip')}
-              </Text>
-            </ScrollView>
-          </View>
-        ) : null}
       </View>
     </DefiGuard>
   );
@@ -429,116 +210,5 @@ const makeStyles = (t) => ({
     fontSize: 12,
     color: t.link,
     marginTop: 4,
-  },
-
-  // sheet
-  sheetMask: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: t.background,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sheetClose: {
-    fontSize: 20,
-    color: t.link,
-    width: 40,
-  },
-  sheetTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: t.accent,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: t.accent,
-    marginBottom: 10,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: t.card,
-    borderRadius: 12,
-    paddingRight: 12,
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: t.accent,
-  },
-  inputSuffix: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: t.secondaryText,
-  },
-  pairHint: {
-    fontSize: 12,
-    color: t.link,
-    marginTop: 8,
-  },
-  balanceText: {
-    fontSize: 12,
-    color: t.secondaryText,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  actionButton: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: t.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeButton: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: t.red,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionText: {
-    color: t.background,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  disabled: {
-    opacity: 0.35,
-  },
-  percentRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  percentCell: {
-    flex: 1,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: t.card,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  percentText: {
-    fontSize: 13,
-    color: t.accent,
-    fontWeight: '600',
-  },
-  tip: {
-    fontSize: 11,
-    color: t.secondaryText,
-    lineHeight: 18,
-    marginTop: 20,
   },
 });

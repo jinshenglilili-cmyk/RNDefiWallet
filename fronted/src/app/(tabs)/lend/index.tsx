@@ -1,53 +1,44 @@
 import { useCallback, useState } from 'react';
 import {
-  Alert,
   ScrollView,
   RefreshControl,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { t as tt } from '@/i18n';
-import * as walletStore from '@/utils/walletStore';
 import { useTheme } from '@/utils/theme';
 import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { AAVE_POOL, WBNB, tokenBySymbol } from '@/utils/defi/tokens';
+import { WBNB, tokenBySymbol } from '@/utils/defi/tokens';
 import * as aave from '@/utils/defi/aave';
-import { balanceOf, wbnbDepositData, wbnbWithdrawData } from '@/utils/defi/erc20';
-import { formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
-import { assertSigningAccount, ensureApproval, signAndSendWithReceipt } from '@/utils/defi/txSender';
-import { DefiGuard, DefiHeader, recordDefiTx } from '@/components/defi/ui';
+import { balanceOf } from '@/utils/defi/erc20';
+import { formatTokenAmount } from '@/utils/defi/format';
+import { DefiGuard, DefiHeader } from '@/components/defi/ui';
 
 /**
  * 借贷资产清单（BSC 上有活跃储备的；DAI 在 BSC 无活跃储备故排除）
- * BNB 特殊：存入前先 WBNB.deposit 包装，取回后 WBNB.withdraw 解包
  */
 const LEND_SYMBOLS = ['BNB', 'USDT', 'USDC', 'ETH', 'BTCB', 'CAKE'];
 
 /**
  * 借贷 Tab：Aave V3（BSC）存币生息
  * - 账户总览：总抵押 / 总负债（USD）、健康因子（<1.2 红 / <1.5 橙 / 其余绿）
- * - 我的存款：各资产 aToken 余额（链上实时读）
- * - 存入：approve → Pool.supply（BNB 先 wrap 成 WBNB）
- * - 取回：Pool.withdraw（BNB 再 unwrap）
+ * - 资产列表（合并「我的存款」与「存入资产」）：每行展示钱包余额，
+ *   已有存款的资产右侧显示存款数量（≈USD 估值），点击 → push 详情页（/defi/lend/[symbol]）
  * - 借款暂未开放（只展示负债，不提供借款入口）
  */
 export default function LendTab() {
   const t = useTheme();
-  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useBscWallet();
+  const router = useRouter();
+  const { session, hasAccount, address, bnbBalance, balances } = useBscWallet();
   const styles = makeStyles(t);
 
   const [account, setAccount] = useState(null); // getUserAccountData 结果
-  const [deposits, setDeposits] = useState([]); // [{ symbol, token, asset, aToken, amount, price }]
+  const [deposits, setDeposits] = useState([]); // [{ symbol, token, amount, price }]
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // 仅手动下拉时转圈（避免进页时刷新圈顶开内容导致闪动）
-  const [selected, setSelected] = useState(null); // 选中的资产行
-  const [amount, setAmount] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [busyText, setBusyText] = useState('');
 
   const loadData = useCallback(async () => {
     if (!address) {
@@ -69,7 +60,7 @@ export default function LendTab() {
               balanceOf(aToken, address),
               aave.assetPrice(asset),
             ]);
-            return { symbol: sym, token, asset, aToken, amount, price };
+            return { symbol: sym, token, amount, price };
           })
         ),
       ]);
@@ -113,139 +104,6 @@ export default function LendTab() {
   /** 存款估值（价格 8 位精度 × 数量 18 位精度 → USD） */
   function depositUsd(row) {
     return (row.amount * row.price) / 10n ** 18n; // 8 位精度 USD
-  }
-
-  async function handleSupply(row) {
-    try {
-      setBusy(true);
-      const from = await assertSigningAccount(meta);
-      const amt = parseTokenAmount(amount, 18);
-      if (amt <= 0n) throw new Error(tt('defi.lend.needAmount'));
-      const isNative = row.token.native;
-      // BNB：预留 gas 后再 wrap
-      const gasReserve = 10n ** 16n;
-      const available = isNative && bnbBalance !== null ? bnbBalance - gasReserve : bnbBalance;
-      const bal = isNative ? available : balances?.[row.symbol];
-      if (bal === null || bal === undefined || bal < amt) {
-        throw new Error(isNative
-          ? tt('defi.lend.insufficientBalanceNative', { symbol: row.symbol })
-          : tt('defi.lend.insufficientBalance', { symbol: row.symbol }));
-      }
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
-
-      // BNB 特殊流程：wrap → approve → supply；其他代币：approve → supply
-      const steps = [];
-      if (isNative) steps.push({ label: tt('defi.lend.stepWrap'), to: WBNB, data: wbnbDepositData(), valueWei: amt });
-      steps.push({ label: tt('defi.lend.stepApprove', { symbol: row.symbol }), approve: row.asset, amountWei: amt });
-      steps.push({ label: tt('defi.lend.stepSupply'), to: AAVE_POOL, data: aave.supplyData(row.asset, amt, address), valueWei: 0n });
-
-      const record = await recordDefiTx(walletStore, {
-        from: address,
-        to: AAVE_POOL,
-        amount: tt('defi.lend.recordSupply', { amount, symbol: row.symbol }),
-        status: tt('common.processing'),
-      });
-      let lastHash = '';
-      let ok = true;
-      for (const step of steps) {
-        setBusyText(step.label);
-        let txHash;
-        if (step.approve) {
-          const res = await ensureApproval({
-            tokenAddress: step.approve,
-            owner: address,
-            spender: AAVE_POOL,
-            amountWei: step.amountWei,
-            mnemonic,
-          });
-          txHash = res.txHash ?? '';
-        } else {
-          const res = await signAndSendWithReceipt({
-            to: step.to, data: step.data, valueWei: step.valueWei ?? 0n, from, mnemonic,
-          });
-          txHash = res.txHash;
-          if (res.receipt && res.receipt.status !== '0x1') ok = false;
-        }
-        if (txHash) lastHash = txHash;
-        if (!ok) break;
-      }
-      await walletStore.updateTransaction(record.id, {
-        status: ok ? tt('common.success') : tt('common.failed'),
-        txHash: lastHash,
-        error: ok ? undefined : tt('defi.common.revert'),
-      });
-      Alert.alert(ok ? tt('defi.lend.supplySuccess') : tt('defi.lend.supplyFailed'), lastHash ? tt('defi.common.txHashAlert', { hash: lastHash }) : tt('common.done'));
-      setSelected(null);
-      setAmount('');
-      await loadData();
-      refresh();
-    } catch (err) {
-      Alert.alert(tt('defi.lend.supplyFailed'), String(err.message ?? err));
-    } finally {
-      setBusy(false);
-      setBusyText('');
-    }
-  }
-
-  async function handleWithdraw(row) {
-    try {
-      setBusy(true);
-      const from = await assertSigningAccount(meta);
-      const amt = parseTokenAmount(amount, 18);
-      if (amt <= 0n) throw new Error(tt('defi.lend.needWithdrawAmount'));
-      if (amt > row.amount) throw new Error(tt('defi.lend.exceedsDeposit'));
-      const isNative = row.token.native;
-      const mnemonic = await walletStore.getSigningMnemonic(address, meta.current);
-
-      // BNB 特殊流程：withdraw(WBNB) → unwrap；其他代币：直接 withdraw
-      const record = await recordDefiTx(walletStore, {
-        from: address,
-        to: AAVE_POOL,
-        amount: tt('defi.lend.recordWithdraw', { amount, symbol: row.symbol }),
-        status: tt('common.processing'),
-      });
-      setBusyText(isNative ? tt('defi.lend.stepWithdrawNative') : tt('defi.lend.stepWithdraw'));
-      const res = await signAndSendWithReceipt({
-        to: AAVE_POOL,
-        data: aave.withdrawData(row.asset, amt, address),
-        valueWei: 0n,
-        from,
-        mnemonic,
-      });
-      let ok = !res.receipt || res.receipt.status === '0x1';
-      let lastHash = res.txHash;
-      // unwrap WBNB → BNB（全量解包，失败不影响取回本身）
-      if (ok && isNative) {
-        try {
-          setBusyText(tt('defi.lend.stepUnwrap'));
-          const unwrap = await signAndSendWithReceipt({
-            to: WBNB,
-            data: wbnbWithdrawData(amt),
-            valueWei: 0n,
-            from,
-            mnemonic,
-          });
-          if (unwrap.txHash) lastHash = unwrap.txHash;
-        } catch {
-          // WBNB 留在钱包里，可后续手动解包
-        }
-      }
-      await walletStore.updateTransaction(record.id, {
-        status: ok ? tt('common.success') : tt('common.failed'),
-        txHash: lastHash,
-        error: ok ? undefined : tt('defi.common.revert'),
-      });
-      Alert.alert(ok ? tt('defi.lend.withdrawSuccess') : tt('defi.lend.withdrawFailed'), tt('defi.common.txHashAlert', { hash: lastHash }));
-      setSelected(null);
-      setAmount('');
-      await loadData();
-      refresh();
-    } catch (err) {
-      Alert.alert(tt('defi.lend.withdrawFailed'), String(err.message ?? err));
-    } finally {
-      setBusy(false);
-      setBusyText('');
-    }
   }
 
   return (
@@ -295,51 +153,20 @@ export default function LendTab() {
           )}
         </View>
 
-        {/* 我的存款 */}
-        <Text style={styles.sectionTitle}>{tt('defi.lend.myDeposits')}</Text>
-        {deposits.length === 0 ? (
-          <Text style={styles.emptyText}>
-            {loading ? tt('defi.lend.loadingDeposits') : tt('defi.lend.noDeposits')}
-          </Text>
-        ) : (
-          deposits.map((row) => (
-            <TouchableOpacity
-              key={row.symbol}
-              style={styles.depositCard}
-              activeOpacity={0.7}
-              onPress={() => {
-                setSelected(row);
-                setAmount('');
-              }}
-            >
-              <Text style={{ fontSize: 22, marginRight: 12 }}>{row.token.icon}</Text>
-              <View style={styles.depositInfo}>
-                <Text style={styles.depositSymbol}>{row.symbol}</Text>
-                <Text style={styles.depositSub}>
-                  ≈ {aave.formatBaseAmount(depositUsd(row))}
-                </Text>
-              </View>
-              <Text style={styles.depositAmount}>
-                {formatTokenAmount(row.amount)}
-              </Text>
-            </TouchableOpacity>
-          ))
-        )}
-
-        {/* 可存资产（全部列出，无论是否已有存款） */}
-        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{tt('defi.lend.supplyAssets')}</Text>
+        {/* 资产列表：钱包余额 + 已有存款数量（原「我的存款」「存入资产」两个模块合并） */}
+        <Text style={styles.sectionTitle}>{tt('defi.lend.supplyAssets')}</Text>
         {LEND_SYMBOLS.map((sym) => {
           const token = tokenBySymbol(sym);
           const row = deposits.find((d) => d.symbol === sym);
+          const hasDeposit = row && row.amount > 0n;
           return (
             <TouchableOpacity
               key={sym}
               style={styles.assetCard}
               activeOpacity={0.7}
-              onPress={() => {
-                setSelected({ symbol: sym, token, asset: token.native ? WBNB : token.address, amount: row?.amount ?? 0n, price: row?.price ?? 0n });
-                setAmount('');
-              }}
+              onPress={() =>
+                router.push({ pathname: '/defi/lend/[symbol]', params: { symbol: sym } })
+              }
             >
               <Text style={{ fontSize: 22, marginRight: 12 }}>{token.icon}</Text>
               <View style={styles.depositInfo}>
@@ -350,9 +177,17 @@ export default function LendTab() {
                       ? (bnbBalance !== null ? formatTokenAmount(bnbBalance) : '…')
                       : (balances?.[sym] !== undefined ? formatTokenAmount(balances[sym]) : '…'),
                   })}
+                  {hasDeposit ? `\n≈ ${aave.formatBaseAmount(depositUsd(row))}` : ''}
                 </Text>
               </View>
-              <Text style={styles.depositHint}>{row && row.amount > 0n ? tt('defi.lend.appendOrWithdraw') : tt('defi.lend.supplyHint')}</Text>
+              {hasDeposit ? (
+                <View style={styles.depositRight}>
+                  <Text style={styles.depositAmount}>{formatTokenAmount(row.amount)}</Text>
+                  <Text style={styles.depositHint}>{tt('defi.lend.appendOrWithdraw')}</Text>
+                </View>
+              ) : (
+                <Text style={styles.depositHint}>{tt('defi.lend.supplyHint')}</Text>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -360,61 +195,6 @@ export default function LendTab() {
         <Text style={styles.tip}>
           {tt('defi.lend.tip')}
         </Text>
-
-        {/* 存入 / 取回 sheet */}
-        {selected ? (
-          <View style={styles.sheetMask}>
-            <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-              <View style={styles.sheetHeader}>
-                <TouchableOpacity onPress={() => setSelected(null)}>
-                  <Text style={styles.sheetClose}>✕</Text>
-                </TouchableOpacity>
-                <Text style={styles.sheetTitle}>{selected.symbol} · Aave V3</Text>
-                <View style={{ width: 40 }} />
-              </View>
-
-              <Text style={styles.sectionTitle}>{tt('defi.lend.supplySection')}</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.input}
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholder={tt('defi.lend.amountPlaceholder', { symbol: selected.symbol })}
-                  placeholderTextColor={t.secondaryText}
-                  keyboardType="decimal-pad"
-                />
-                <Text style={styles.inputSuffix}>{selected.symbol}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.actionButton, (!amount || busy) && styles.disabled]}
-                disabled={!amount || busy}
-                onPress={() => handleSupply(selected)}
-              >
-                <Text style={styles.actionText}>{busy ? busyText : tt('defi.lend.supplySection')}</Text>
-              </TouchableOpacity>
-
-              {selected.amount > 0n ? (
-                <>
-                  <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{tt('defi.lend.withdrawSection')}</Text>
-                  <Text style={styles.balanceText}>
-                    {tt('defi.lend.currentDeposit', { amount: formatTokenAmount(selected.amount), symbol: selected.symbol })}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.withdrawButton, (!amount || busy) && styles.disabled]}
-                    disabled={!amount || busy}
-                    onPress={() => handleWithdraw(selected)}
-                  >
-                    <Text style={styles.actionText}>{busy ? busyText : tt('defi.lend.withdrawSection')}</Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
-
-              <Text style={styles.tip}>
-                {tt('defi.lend.sheetTip')}
-              </Text>
-            </ScrollView>
-          </View>
-        ) : null}
       </ScrollView>
     </DefiGuard>
   );
@@ -470,16 +250,11 @@ const makeStyles = (t) => ({
     marginTop: 8,
     marginBottom: 8,
   },
-  depositCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: t.card,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
   depositInfo: {
     flex: 1,
+  },
+  depositRight: {
+    alignItems: 'flex-end',
   },
   depositSymbol: {
     fontSize: 15,
@@ -508,82 +283,6 @@ const makeStyles = (t) => ({
     fontSize: 12,
     fontWeight: '600',
     color: t.link,
-  },
-
-  // sheet
-  sheetMask: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: t.background,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sheetClose: {
-    fontSize: 20,
-    color: t.link,
-    width: 40,
-  },
-  sheetTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: t.accent,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: t.card,
-    borderRadius: 12,
-    paddingRight: 12,
-    marginBottom: 12,
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: t.accent,
-  },
-  inputSuffix: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: t.secondaryText,
-  },
-  balanceText: {
-    fontSize: 12,
-    color: t.secondaryText,
-    marginBottom: 12,
-  },
-  actionButton: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: t.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  withdrawButton: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: t.red,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionText: {
-    color: t.background,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  disabled: {
-    opacity: 0.35,
   },
   tip: {
     fontSize: 11,

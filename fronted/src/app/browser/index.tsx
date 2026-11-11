@@ -95,7 +95,6 @@ const makeStyles = (t) =>
     container: {
       flex: 1,
       backgroundColor: t.background,
-      paddingTop: 58,
     },
     urlBar: {
       flexDirection: 'row',

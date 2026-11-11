@@ -1,13 +1,20 @@
+import { useEffect } from 'react';
 import { Link, SplashScreen, Stack, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import screenOptions from '@/options/screenOptions';
 import { SplashScreenController } from '@/utils/splash';
 import { t as tt, useI18nLocale } from '@/i18n';
+import { useWalletStore } from '@/stores/wallet';
 
 export default function Layout() {
   // 订阅语言：切换语言时重新渲染，导航栏标题随语言刷新
   useI18nLocale();
+  // 启动时加载钱包数据：DeFi tab 的守卫依赖 meta，
+  // 避免必须先进入钱包 tab 才加载（否则深链接/直接切 tab 会误判「没有钱包」）
+  useEffect(() => {
+    useWalletStore.getState().load();
+  }, []);
   function CloseButton() {
     const router = useRouter();
     return (
@@ -32,7 +39,7 @@ export default function Layout() {
         {/* 钱包/行情/浏览器的二级页面：普通 push 推出。
             钱包二级页用原生导航栏（返回箭头 + 居中标题，同「连接钱包」） */}
         <Stack.Screen name="market/[id]" options={{ title: tt('market.detail.title') }} />
-        <Stack.Screen name="browser/index" options={{ headerShown: false }} />
+        <Stack.Screen name="browser/index" options={{ title: tt('browser.title') }} />
         <Stack.Screen name="browser/viewer" options={{ title: tt('browser.title') }} />
         <Stack.Screen name="wallet/create" options={{ title: tt('wallet.create.title') }} />
         <Stack.Screen name="wallet/import" options={{ title: tt('wallet.import.title') }} />
@@ -40,6 +47,9 @@ export default function Layout() {
         <Stack.Screen name="wallet/transactions" options={{ title: tt('wallet.transactions.title') }} />
         <Stack.Screen name="wallet/sign" options={{ title: tt('wallet.sign.title') }} />
         <Stack.Screen name="wallet/export" options={{ title: tt('wallet.export.title') }} />
+        {/* DeFi 二级页：LP / 借贷的操作页（从 tab 内 push 进入，带导航栏返回） */}
+        <Stack.Screen name="defi/lp/[symbol]" options={{ title: tt('defi.lp.detailTitle') }} />
+        <Stack.Screen name="defi/lend/[symbol]" options={{ title: tt('defi.lend.detailTitle') }} />
         <Stack.Screen name="settings/index" options={{ headerShown: false }} />
         <Stack.Screen name="wc/index" options={{ title: tt('wc.connect.title') }} />
         {/* Modal */}

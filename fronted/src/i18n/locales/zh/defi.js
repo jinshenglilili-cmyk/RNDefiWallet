@@ -52,6 +52,8 @@ export default {
   lp: {
     headerTitle: 'LP 流动性',
     headerSubtitle: 'PancakeSwap V2 · BSC 链 · 添加 / 移除流动性',
+    // 详情页导航栏标题（页面内会动态覆盖为「交易对 / BNB」）
+    detailTitle: '添加 / 移除流动性',
     loadingPools: '加载池子中…',
     noPools: '没有可用池子或加载失败，下拉重试',
     myShare: '我的份额 %{share}%',
@@ -88,6 +90,8 @@ export default {
   lend: {
     headerTitle: '借贷',
     headerSubtitle: 'Aave V3 · BSC 链 · 存币生息',
+    // 详情页导航栏标题（页面内会动态覆盖为「资产 · Aave V3」）
+    detailTitle: '存入 / 取回',
     // 账户总览
     accountOverview: '账户总览',
     totalCollateral: '总抵押',
@@ -96,8 +100,7 @@ export default {
     hfHint: '健康因子低于 1 有清算风险（当前清算阈值 %{threshold}%）',
     loadingAccount: '加载账户数据…',
     accountLoadFailed: '账户数据加载失败，下拉重试',
-    // 存款列表
-    myDeposits: '我的存款',
+    // 存款列表（合并后的资产列表：钱包余额 + 已有存款数量）
     loadingDeposits: '加载存款列表…',
     noDeposits: '暂无存款。点击下方资产存入即可开始生息。',
     supplyAssets: '存入资产',
