@@ -3696,3 +3696,9 @@
 {"_e":"metro:bundling:done","_t":1794449851721,"id":"2c","total":1,"ms":54.33425}
 {"_e":"metro:bundling:started","_t":1794449910823,"id":"2d","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1794449911002,"id":"2d","total":1,"ms":178.935083}
+{"_e":"metro:server_log","_t":1794455336805,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.hrbbcfc.client","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1794457360756,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.hrbbcfc.client","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1794459208758,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.hrbbcfc.client","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1794460272444,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.hrbbcfc.client","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1794463150871,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.hrbbcfc.client","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1794464076789,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.hrbbcfc.client","iPhone 17 Pro","60"]}
