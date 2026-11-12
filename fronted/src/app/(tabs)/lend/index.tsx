@@ -38,7 +38,7 @@ export default function LendTab() {
 
   const headerSubtitle = network === 'sepolia'
     ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
-    : tt('defi.lend.headerSubtitle');
+    : tt('defi.lend.headerSubtitle', { net: tt(`defi.network.${net().id}`) });
 
   const [account, setAccount] = useState(null); // getUserAccountData 结果
   const [deposits, setDeposits] = useState([]); // [{ symbol, token, amount, price }]

@@ -1,4 +1,4 @@
-// DeFi 网络 store（zustand）：Swap/LP/借贷 三个 tab 使用的链（BSC 主网 / Sepolia 测试网）
+// DeFi 网络 store（zustand）：Swap/LP/借贷 三个 tab 使用的链（BSC / Ethereum 主网、Sepolia 测试网）
 //
 // 选择持久化在 AsyncStorage（key: defi.network.choice）。
 // 链上常量（RPC / 合约地址 / 代币清单）按当前网络在 utils/defi/tokens.js 里读取；
@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /** 网络标识 */
 export const BSC = 'bsc';
+export const ETHEREUM = 'ethereum';
 export const SEPOLIA = 'sepolia';
 
 const KEY = 'defi.network.choice';
@@ -21,7 +22,7 @@ export const useDefiNetwork = create((set) => ({
   load: async () => {
     try {
       const v = await AsyncStorage.getItem(KEY);
-      if (v === BSC || v === SEPOLIA) set({ network: v });
+      if (v === BSC || v === ETHEREUM || v === SEPOLIA) set({ network: v });
     } catch {}
   },
 

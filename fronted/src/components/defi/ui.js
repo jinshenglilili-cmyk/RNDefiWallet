@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/utils/theme';
 import { t as tt } from '@/i18n';
 import { useDefiNetwork } from '@/stores/defiNetwork';
-import { getTokens } from '@/utils/defi/tokens';
+import { getTokens, net } from '@/utils/defi/tokens';
 import { formatTokenAmount } from '@/utils/defi/format';
 
 /** 通用守卫：未登录 / 没有钱包账号时渲染引导页（有账号渲染 children） */
@@ -126,7 +126,7 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
           </TouchableOpacity>
         ))}
         <Text style={{ fontSize: 11, color: t.secondaryText, marginTop: 8, lineHeight: 18 }}>
-          {tt('defi.common.tokenSheetTip')}
+          {tt('defi.common.tokenSheetTip', { native: net().nativeSymbol, wrapped: net().tokens.find((tk) => tk.wrapped)?.symbol ?? '' })}
         </Text>
       </View>
     </Modal>
@@ -138,8 +138,8 @@ export async function recordDefiTx(walletStore, record) {
   const network = useDefiNetwork.getState().network;
   return walletStore.addTransaction({
     type: 'defi',
-    chain: network === 'sepolia' ? 'sepolia' : 'bsc',
-    chainSymbol: network === 'sepolia' ? 'ETH' : 'BNB',
+    chain: network, // 'bsc' | 'ethereum' | 'sepolia'（钱包侧 chains i18n 已含全部 key）
+    chainSymbol: net().nativeSymbol,
     ...record,
   });
 }

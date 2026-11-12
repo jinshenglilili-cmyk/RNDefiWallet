@@ -10,7 +10,7 @@ import { useDefiNetwork } from '@/stores/defiNetwork';
 /**
  * 设置页（普通 push 推出，非弹窗）
  * - 语言切换（跟随系统 / 简体中文 / English）
- * - DeFi 网络（BSC 主网 / Sepolia 测试网）
+ * - DeFi 网络（BSC / Ethereum 主网、Sepolia 测试网）
  * - 数据来源（CoinGecko）
  * - 应用信息
  * - 退出登录（登录后显示）
@@ -24,7 +24,7 @@ export default function Settings() {
   const { network, setNetwork } = useDefiNetwork(); // 订阅 DeFi 网络，切换时整页重渲染
   const styles = makeStyles(t);
 
-  /** DeFi 网络切换弹窗（BSC 主网 / Sepolia 测试网） */
+  /** DeFi 网络切换弹窗（BSC / Ethereum 主网、Sepolia 测试网） */
   function pickNetwork() {
     Alert.alert(tt('settings.defiNetwork'), undefined, [
       {
@@ -32,7 +32,11 @@ export default function Settings() {
         onPress: () => setNetwork('bsc'),
       },
       {
-        text: network === 'sepolia' ? `✓ Sepolia 测试网` : 'Sepolia 测试网',
+        text: network === 'ethereum' ? `✓ ${tt('defi.network.ethereum')}` : tt('defi.network.ethereum'),
+        onPress: () => setNetwork('ethereum'),
+      },
+      {
+        text: network === 'sepolia' ? `✓ ${tt('defi.network.sepolia')}` : tt('defi.network.sepolia'),
         onPress: () => setNetwork('sepolia'),
       },
     ], { cancelable: true });
@@ -87,7 +91,7 @@ export default function Settings() {
           <View style={styles.rowBetween}>
             <Text style={styles.rowText}>{tt('settings.defiNetwork')}</Text>
             <Text style={styles.rowValue}>
-              {network === 'sepolia' ? 'Sepolia 测试网' : tt('defi.network.bsc')}
+              {tt(`defi.network.${network}`)}
             </Text>
           </View>
         </TouchableOpacity>

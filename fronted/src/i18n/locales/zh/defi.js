@@ -14,7 +14,7 @@ export default {
     goAddWallet: '去添加钱包',
     // 代币选择 sheet（TokenSheet）
     selectToken: '选择代币',
-    tokenSheetTip: '仅展示常用 BSC 代币；BNB 为原生币（含 gas 余额），兑换路径自动走 WBNB。',
+    tokenSheetTip: '仅展示常用代币；%{native} 为原生币（含 gas 余额），兑换路径自动走 %{wrapped}。',
     // 交易结果 / 状态
     txHashAlert: '交易哈希：\n%{hash}',
     revert: '合约执行失败（revert）',
@@ -28,14 +28,14 @@ export default {
     signConfirmBody: '方法：%{method}\n合约：%{to}\n发送：%{value} %{native}\ngas 上限：%{gas}\n发起账号：%{from}\n\n签名前请确认以上内容，签名在本地完成，私钥不会离开设备。',
     signConfirmBtn: '确认签名',
     userCancel: '已取消签名',
-    approveFailed: '授权交易失败，请检查 BNB 余额后重试',
+    approveFailed: '授权交易失败，请检查 %{native} 余额后重试',
   },
 
   swap: {
-    headerSubtitle: 'PancakeSwap V2 · 1inch · BSC 链',
+    headerSubtitle: '%{dex} · %{net} · 兑换',
     onchainQuoteSuffix: '（链上报价）',
     providerOneInch: '1inch 聚合器（实验）',
-    oneInchUnavailable: '1inch 报价不可用（需网络或 API Key），可改用 PancakeSwap',
+    oneInchUnavailable: '1inch 报价不可用（需网络或 API Key），可改用链上报价',
     sell: '卖出',
     buy: '买入',
     balance: '余额 %{amount}',
@@ -53,12 +53,12 @@ export default {
     btnQuoting: '获取报价…',
     btnSwap: '兑换',
     btnEnterAmount: '输入金额以获取报价',
-    tip: '说明：兑换在当前链上执行，需要少量 %{native} 作 gas；PancakeSwap V2 手续费 0.25%。1inch 为聚合路由（实验功能），网络不可达时会提示改用 PancakeSwap。授权只需在额度不足时发起。',
+    tip: '说明：兑换在当前链上执行，需要少量 %{native} 作 gas；%{dex} 手续费 %{fee}。1inch 为聚合路由（实验功能），网络不可达时会提示改用链上报价。授权只需在额度不足时发起。',
   },
 
   lp: {
     headerTitle: 'LP 流动性',
-    headerSubtitle: 'PancakeSwap V2 · BSC 链 · 添加 / 移除流动性',
+    headerSubtitle: '%{dex} · %{net} · 添加 / 移除流动性',
     // 详情页导航栏标题（页面内会动态覆盖为「交易对 / BNB」）
     detailTitle: '添加 / 移除流动性',
     loadingPools: '加载池子中…',
@@ -96,7 +96,7 @@ export default {
 
   lend: {
     headerTitle: '借贷',
-    headerSubtitle: 'Aave V3 · BSC 链 · 存币生息',
+    headerSubtitle: 'Aave V3 · %{net} · 存币生息',
     // 详情页导航栏标题（页面内会动态覆盖为「资产 · Aave V3」）
     detailTitle: '存入 / 取回',
     // 账户总览
@@ -151,6 +151,7 @@ export default {
   // DeFi 网络名称（标题徽标 / 副标题 / 确认弹窗）
   network: {
     bsc: 'BSC 链',
+    ethereum: '以太坊主网',
     sepolia: 'Sepolia 测试网',
   },
 

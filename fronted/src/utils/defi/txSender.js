@@ -1,7 +1,7 @@
 // DeFi 交易签名广播通用流程（Swap/LP/借贷三个 tab 共用）
 //
 // 复用项目现成的签名通道：@wallet 原生模块（Trust Wallet Core），
-// chainId 取当前 DeFi 网络（BSC 56 / Sepolia 11155111）。
+// chainId 取当前 DeFi 网络（BSC 56 / Ethereum 1 / Sepolia 11155111）。
 // DeFi 调用 = 合约 to + data（+ 可选 value）。
 //
 // 流程：取签名凭据（助记词账号走 signTransaction，私钥导入账号走
@@ -149,7 +149,7 @@ export async function ensureApproval({ tokenAddress, owner, spender, amountWei, 
     method: 'approve (ERC20 授权)',
   });
   if (receipt && receipt.status !== '0x1') {
-    throw new Error(tt('defi.common.approveFailed'));
+    throw new Error(tt('defi.common.approveFailed', { native: nativeSymbol() }));
   }
   return { approved: true, txHash };
 }

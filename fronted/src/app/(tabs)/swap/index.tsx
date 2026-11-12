@@ -224,10 +224,10 @@ export default function SwapTab() {
           title="Swap"
           subtitle={network === 'sepolia'
             ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
-            : tt('defi.swap.headerSubtitle')}
+            : tt('defi.swap.headerSubtitle', { dex: net().dexName, net: tt(`defi.network.${net().id}`) })}
         />
 
-        {/* 协议选择：1inch 仅在 BSC 开放（Sepolia 不提供聚合器报价） */}
+        {/* 协议选择：1inch 按 tokens.js 的 oneInch 开关展示（Sepolia 不提供聚合器报价） */}
         <View style={styles.providerRow}>
           {['pancake', ...(net().oneInch ? ['1inch'] : [])].map((key) => (
             <TouchableOpacity
@@ -334,7 +334,7 @@ export default function SwapTab() {
         </TouchableOpacity>
 
         <Text style={styles.tip}>
-          {tt('defi.swap.tip', { native: net().nativeSymbol })}
+          {tt('defi.swap.tip', { native: net().nativeSymbol, dex: net().dexName, fee: net().swapFee })}
         </Text>
 
         <TokenSheet

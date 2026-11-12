@@ -33,7 +33,7 @@ export default function LpTab() {
 
   const headerSubtitle = network === 'sepolia'
     ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
-    : tt('defi.lp.headerSubtitle');
+    : tt('defi.lp.headerSubtitle', { dex: net().dexName, net: tt(`defi.network.${net().id}`) });
 
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);

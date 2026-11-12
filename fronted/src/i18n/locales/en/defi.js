@@ -14,7 +14,7 @@ export default {
     goAddWallet: 'Add Wallet',
     // Token picker sheet (TokenSheet)
     selectToken: 'Select Token',
-    tokenSheetTip: 'Only common BSC tokens are shown. BNB is the native coin (gas balance included); swap routes go through WBNB automatically.',
+    tokenSheetTip: 'Only common tokens are shown. %{native} is the native coin (gas balance included); swap routes go through %{wrapped} automatically.',
     // Transaction results / status
     txHashAlert: 'Tx Hash:\n%{hash}',
     revert: 'Contract execution failed (revert)',
@@ -28,14 +28,14 @@ export default {
     signConfirmBody: 'Method: %{method}\nContract: %{to}\nValue: %{value} %{native}\nGas limit: %{gas}\nFrom: %{from}\n\nSigning happens locally on this device; your private key never leaves it.',
     signConfirmBtn: 'Sign',
     userCancel: 'Signature cancelled',
-    approveFailed: 'Approval transaction failed. Check your BNB balance and retry',
+    approveFailed: 'Approval transaction failed. Check your %{native} balance and retry',
   },
 
   swap: {
-    headerSubtitle: 'PancakeSwap V2 · 1inch · BSC',
+    headerSubtitle: '%{dex} · %{net} · Swap',
     onchainQuoteSuffix: ' (on-chain quote)',
     providerOneInch: '1inch aggregator (experimental)',
-    oneInchUnavailable: '1inch quote unavailable (needs network or API key). Use PancakeSwap instead',
+    oneInchUnavailable: '1inch quote unavailable (needs network or API key). Use the on-chain quote instead',
     sell: 'Sell',
     buy: 'Buy',
     balance: 'Balance %{amount}',
@@ -53,12 +53,12 @@ export default {
     btnQuoting: 'Getting quote…',
     btnSwap: 'Swap',
     btnEnterAmount: 'Enter an amount to get a quote',
-    tip: 'Swaps execute on-chain and need a small amount of %{native} for gas. PancakeSwap V2 fee is 0.25%. 1inch is an aggregated router (experimental); when unreachable, you will be prompted to use PancakeSwap. Approval is only sent when the allowance is insufficient.',
+    tip: 'Swaps execute on-chain and need a small amount of %{native} for gas. %{dex} fee is %{fee}. 1inch is an aggregated router (experimental); when unreachable, you will be prompted to use the on-chain quote. Approval is only sent when the allowance is insufficient.',
   },
 
   lp: {
     headerTitle: 'LP Liquidity',
-    headerSubtitle: 'PancakeSwap V2 · BSC · Add / Remove Liquidity',
+    headerSubtitle: '%{dex} · %{net} · Add / Remove Liquidity',
     // Detail page nav title (overridden in-page by "PAIR / BNB")
     detailTitle: 'Add / Remove Liquidity',
     loadingPools: 'Loading pools…',
@@ -96,7 +96,7 @@ export default {
 
   lend: {
     headerTitle: 'Lending',
-    headerSubtitle: 'Aave V3 · BSC · Earn interest',
+    headerSubtitle: 'Aave V3 · %{net} · Earn interest',
     // Detail page nav title (overridden in-page by "ASSET · Aave V3")
     detailTitle: 'Supply / Withdraw',
     // Account overview
@@ -151,6 +151,7 @@ export default {
   // DeFi network names (header badge / subtitle / confirm dialog)
   network: {
     bsc: 'BSC',
+    ethereum: 'Ethereum',
     sepolia: 'Sepolia Testnet',
   },
 

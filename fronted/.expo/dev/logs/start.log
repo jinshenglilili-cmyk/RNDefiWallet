@@ -3686,3 +3686,13 @@
 {"_e":"metro:bundling:done","_t":1794394996203,"id":"27","total":1,"ms":125.797084}
 {"_e":"metro:bundling:started","_t":1794395213599,"id":"28","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1794395213843,"id":"28","total":1,"ms":243.947583}
+{"_e":"metro:bundling:started","_t":1794449430099,"id":"29","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1794449430293,"id":"29","total":1,"ms":194.295333}
+{"_e":"metro:bundling:started","_t":1794449690457,"id":"2a","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1794449690522,"id":"2a","total":1,"ms":64.539792}
+{"_e":"metro:bundling:started","_t":1794449816927,"id":"2b","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1794449817123,"id":"2b","total":1,"ms":196.13825}
+{"_e":"metro:bundling:started","_t":1794449851667,"id":"2c","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1794449851721,"id":"2c","total":1,"ms":54.33425}
+{"_e":"metro:bundling:started","_t":1794449910823,"id":"2d","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1794449911002,"id":"2d","total":1,"ms":178.935083}
