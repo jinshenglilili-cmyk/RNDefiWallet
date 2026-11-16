@@ -118,6 +118,16 @@ class WalletModule : Module() {
       val key = wallet.getKey(path) ?: throw Exception("WalletError", "派生地址失败（index: $index）")
       coinType.deriveAddress(key)
     }
+
+    // 按账户序号派生以太坊私钥（BIP44 路径 index 位）。
+    // 仅在账号创建/迁移那一刻调用：派生出的私钥由 JS 层存 SecureStore，
+    // 助记词本身不再持久化（展示一次后即丢弃）。
+    AsyncFunction("derivePrivateKey") { mnemonic: String, index: Int, passphrase: String? ->
+      val wallet = makeWallet(mnemonic, passphrase)
+      val path = String.format(CoinType.ETHEREUM.derivationPath(), index)
+      val key = wallet.getKey(path) ?: throw Exception("WalletError", "派生私钥失败（index: $index）")
+      toHex(key.data().toByteArray())
+    }
   }
 
   // MARK: - 各链交易签名

@@ -1,7 +1,9 @@
-// DeFi 支持的网络配置与代币清单
+// DeFi 网络配置与选择 store（合并在一个文件：网络状态 + 链上常量）
 //
-// 当前网络来自 stores/defiNetwork.js（BSC / Ethereum 主网、Sepolia 测试网，可在设置页切换）。
-// 所有用到链上常量的代码（RPC、Router、Aave、代币列表）都通过 net() 现场读取，
+// Swap/LP/借贷 三个 tab 使用的链（BSC / Ethereum 主网、Sepolia 测试网）。
+// 选择持久化在 AsyncStorage（key: defi.network.choice）；组件订阅本 store，
+// 切换网络时 DeFi 页面整体重渲染并重新拉取数据。
+// 所有链上常量（RPC / 合约地址 / 代币清单）通过 net() 现场读取，
 // 切换网络后无需重启。
 //
 // BSC 地址在 2026-11 通过 bsc-rpc.publicnode.com 的 eth_call 逐一验证过：
@@ -22,7 +24,43 @@
 // 注意：PancakeSwap V2 Router/Factory 的 BSC 规范地址在以太坊主网上存在
 // 同地址假合约（地址蹲守攻击），所以以太坊主网走 Uniswap V2 而不是 PancakeSwap。
 
-import { defiNetworkId, BSC, ETHEREUM, SEPOLIA } from '@/stores/defiNetwork';
+import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/** 网络标识 */
+export const BSC = 'bsc';
+export const ETHEREUM = 'ethereum';
+export const SEPOLIA = 'sepolia';
+
+const KEY = 'defi.network.choice';
+
+export const useDefiNetwork = create((set) => ({
+  /** 当前网络 id（'bsc' | 'ethereum' | 'sepolia'） */
+  network: BSC,
+
+  /** 启动时读取持久化的选择 */
+  load: async () => {
+    try {
+      const v = await AsyncStorage.getItem(KEY);
+      if (v === BSC || v === ETHEREUM || v === SEPOLIA) set({ network: v });
+    } catch {}
+  },
+
+  /** 切换网络（持久化 + 触发订阅组件重渲染） */
+  setNetwork: async (network) => {
+    try {
+      await AsyncStorage.setItem(KEY, network);
+    } catch {}
+    set({ network });
+  },
+}));
+
+/** 非组件代码（utils）读取当前网络 id */
+export function defiNetworkId() {
+  return useDefiNetwork.getState().network;
+}
+
+// ---------- 网络配置（链上常量） ----------
 
 /** 原生币在代币列表里的占位地址（很多 UI 惯例用全 0x0 表示） */
 export const NATIVE = '0x0000000000000000000000000000000000000000';
@@ -122,7 +160,7 @@ const ETHEREUM_NET = {
 
 const NETWORKS = { [BSC]: BSC_NET, [ETHEREUM]: ETHEREUM_NET, [SEPOLIA]: SEPOLIA_NET };
 
-/** 当前网络配置（每次调用现场读取，切换网络即生效） */
+/** 当前网络配置（每次调用现场读取 store，切换网络即生效） */
 export function net() {
   return NETWORKS[defiNetworkId()] ?? BSC_NET;
 }

@@ -162,6 +162,8 @@ declare class WalletNativeModule extends NativeModule<{
   ): Promise<string>;
   /** 按账户序号派生地址（BIP44 路径 index 位），用于多账号切换 */
   deriveAddress(coin: Coin, mnemonic: string, index: number, passphrase?: string): Promise<string>;
+  /** 按账户序号派生以太坊私钥（BIP44 路径 index 位），仅在账号创建/迁移时调用 */
+  derivePrivateKey(mnemonic: string, index: number, passphrase?: string): Promise<string>;
 }> {}
 
 const native = requireNativeModule<WalletNativeModule>('Wallet');
@@ -324,6 +326,14 @@ const Wallet = {
    */
   deriveAddress(coin: Coin, mnemonic: string, index: number, passphrase = ''): Promise<string> {
     return native.deriveAddress(coin, mnemonic, index, passphrase);
+  },
+
+  /**
+   * 按账户序号派生以太坊私钥（BIP44 路径 index 位，返回 64 位 hex，无 0x 前缀）
+   * 仅在账号创建/迁移那一刻调用：私钥由调用方存 SecureStore，助记词不落盘
+   */
+  derivePrivateKey(mnemonic: string, index: number, passphrase = ''): Promise<string> {
+    return native.derivePrivateKey(mnemonic, index, passphrase);
   },
 };
 

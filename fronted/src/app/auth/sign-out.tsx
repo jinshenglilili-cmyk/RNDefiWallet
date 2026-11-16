@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/hooks/useAuthStore';
 import { t as tt } from '@/i18n';
 
 /**

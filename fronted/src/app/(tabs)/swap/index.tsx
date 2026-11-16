@@ -3,9 +3,10 @@ import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'reac
 
 import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
-import { useTheme } from '@/utils/theme';
-import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { getTokens, pathAddress, net, wrappedSymbol } from '@/utils/defi/tokens';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useTheme } from '@/hooks/useTheme';
+import { useUserInfo } from '@/hooks/useUserInfo';
+import { getTokens, pathAddress, net, wrappedSymbol } from '@/hooks/useDefiNetwork';
 import * as pancake from '@/utils/defi/pancake';
 import { getAmountsOut } from '@/utils/defi/pancake';
 import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
@@ -28,7 +29,7 @@ const SLIPPAGE_PRESETS = [0.1, 0.5, 1.0];
 export default function SwapTab() {
   const t = useTheme();
   const { session, meta, hasAccount, address, bnbBalance, balances, refresh, network } =
-    useBscWallet();
+    useUserInfo();
   const styles = makeStyles(t);
 
   // 初始代币按当前网络取（原生币 / USDT）
@@ -119,8 +120,11 @@ export default function SwapTab() {
   async function handleSwap() {
     try {
       setBusy(true);
+      // 当前账号
       const from = await assertSigningAccount(meta);
+      // 输入金额
       const amountInWei = parseTokenAmount(amount, fromToken.decimals);
+      // 当前账号  当前币种 的余额
       const bal = tokenBalance(fromToken);
       if (bal === null || bal === undefined || bal < amountInWei) {
         throw new Error(tt('defi.swap.insufficientBalance', { symbol: fromToken.symbol }));
@@ -192,7 +196,7 @@ export default function SwapTab() {
                     sign,
                   });
                 }
-                const record = await recordDefiTx(walletStore, {
+                const record = await recordDefiTx({
                   from: address,
                   to: target,
                   amount: `${amount} ${fromToken.symbol}`,
@@ -207,7 +211,7 @@ export default function SwapTab() {
                   method,
                 });
                 const ok = !receipt || receipt.status === '0x1';
-                await walletStore.updateTransaction(record.id, {
+                await useWalletStore.getState().updateTransaction(record.id, {
                   status: ok ? tt('common.success') : tt('common.failed'),
                   txHash,
                   error: ok ? undefined : tt('defi.common.revert'),
@@ -260,7 +264,7 @@ export default function SwapTab() {
           }
         />
 
-        {/* 协议选择：1inch 按 tokens.js 的 oneInch 开关展示（Sepolia 不提供聚合器报价） */}
+        {/* 协议选择：1inch 按 useDefiNetwork.js 的 oneInch 开关展示（Sepolia 不提供聚合器报价） */}
         <View style={styles.providerRow}>
           {['pancake', ...(net().oneInch ? ['1inch'] : [])].map((key) => (
             <TouchableOpacity

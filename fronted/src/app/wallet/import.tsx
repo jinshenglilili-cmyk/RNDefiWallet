@@ -4,11 +4,12 @@ import { useRouter } from 'expo-router';
 
 import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
-import { useAuthStore } from '@/stores/auth';
-import { useTheme } from '@/utils/theme';
+import { useAuthStore } from '@/hooks/useAuthStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
-/** 导入钱包：粘贴/输入助记词 -> 校验 -> 保存并派生账号 0 */
+/** 导入钱包：粘贴/输入助记词 -> 校验 -> 派生私钥保存（助记词不落盘），派生账号 0 */
 export default function ImportWallet() {
   const t = useTheme();
   const router = useRouter();
@@ -25,9 +26,12 @@ export default function ImportWallet() {
         Alert.alert(tt('wallet.import.failed'), tt('wallet.import.invalid'));
         return;
       }
-      await walletStore.saveMnemonic(mnemonic);
-      const address = await Wallet.deriveAddress('ethereum', mnemonic, 0);
-      await walletStore.addAccount(mnemonic, 0, address);
+      // 助记词只在这一刻使用：派生 index 0 私钥后即丢弃（助记词不落盘，签名全走私钥）
+      const privateKey = await Wallet.derivePrivateKey('ethereum', mnemonic, 0);
+      const { address } = await Wallet.importPrivateKey(privateKey);
+      await walletStore.savePrivateKey(address, privateKey);
+      // 账号列表走 useWalletStore（内存更新 + 整体写回存储）
+      await useWalletStore.getState().addAccount(address);
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
       Alert.alert(tt('wallet.import.successTitle'), tt('wallet.import.successMsg'), [
         { text: tt('wallet.common.ok'), onPress: () => router.back() },

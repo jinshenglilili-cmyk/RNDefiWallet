@@ -2,10 +2,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Linking } 
 import { useRouter } from 'expo-router';
 import SubPageHeader from '@/components/SubPageHeader';
 
-import { useSession } from '@/utils/ctx';
-import { useTheme } from '@/utils/theme';
+import { useAuthStore } from '@/hooks/useAuthStore';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt, useI18nStore, useI18nLocale, LANG_CHOICES } from '@/i18n';
-import { useDefiNetwork } from '@/stores/defiNetwork';
+import { useDefiNetwork } from '@/hooks/useDefiNetwork';
 
 /**
  * 设置页（普通 push 推出，非弹窗）
@@ -18,7 +18,7 @@ import { useDefiNetwork } from '@/stores/defiNetwork';
 export default function Settings() {
   const t = useTheme();
   const router = useRouter();
-  const { session, signOut } = useSession();
+  const { session, signOut } = useAuthStore();
   const locale = useI18nLocale(); // 订阅语言，切换时整页重渲染
   const { choice, setChoice } = useI18nStore();
   const { network, setNetwork } = useDefiNetwork(); // 订阅 DeFi 网络，切换时整页重渲染

@@ -11,6 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { post, del, get as apiGet } from '@/utils/request';
 import * as walletStore from '@/utils/walletStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
 import { t as tt } from '@/i18n';
 
 const SESSION_KEY = 'session';
@@ -23,7 +24,7 @@ export const useAuthStore = create((set, get) => ({
   /** 当前登录用户信息（/users/me），未登录为 null */
   userInfo: null,
 
-  /** 应用启动时恢复 session（stores/auth.js 模块加载时调用一次） */
+  /** 应用启动时恢复 session（hooks/useAuthStore.js 模块加载时调用一次） */
   init: async () => {
     const session = await SecureStore.getItemAsync(SESSION_KEY);
     set({ session, isLoading: false });
@@ -47,10 +48,12 @@ export const useAuthStore = create((set, get) => ({
     try {
       if (uid != null) {
         await walletStore.switchWalletOwner(uid);
-        return;
+      } else {
+        const me = await apiGet('/users/me');
+        await walletStore.switchWalletOwner(me.data?.user?.id ?? null);
       }
-      const me = await apiGet('/users/me');
-      await walletStore.switchWalletOwner(me.data?.user?.id ?? null);
+      // 归属变了，同步重读该用户的钱包信息到全局 hook（钱包页/转账页等订阅者立即拿到新数据）
+      await useWalletStore.getState().load();
     } catch {}
   },
 
@@ -132,6 +135,7 @@ export const useAuthStore = create((set, get) => ({
   signOut: async () => {
     // 退出登录：当前钱包数据整体归档到该用户名下（重新登录后恢复）
     await walletStore.switchWalletOwner(null).catch(() => {});
+    useWalletStore.getState().reset(); // 清空内存里的钱包数据（未登录命名空间是空的）
     await get().setSession(null);
     set({ userInfo: null });
   },
@@ -144,6 +148,7 @@ export const useAuthStore = create((set, get) => ({
     } catch {}
     await walletStore.deleteWallet().catch(() => {});
     await walletStore.switchWalletOwner(null).catch(() => {});
+    useWalletStore.getState().reset();
     await del('/users/me');
     await get().setSession(null);
     set({ userInfo: null });

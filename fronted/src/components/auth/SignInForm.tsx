@@ -10,14 +10,14 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { KeyboardProvider, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
-import { useSession } from '@/utils/ctx';
+import { useAuthStore } from '@/hooks/useAuthStore';
 import { t as tt } from '@/i18n';
 import Loading from '@/components/shared/Loading';
 import * as WebBrowser from 'expo-web-browser';
 
 export default function SignInForm(props) {
   const { setSelected } = props;
-  const { signIn } = useSession();
+  const { signIn } = useAuthStore();
   const [hidePassword, setHidePassword] = useState(true);
   const [agreedPolicy, setAgreedPolicy] = useState(false);
   const [formParams, setFormParams] = useState({

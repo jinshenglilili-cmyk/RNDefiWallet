@@ -11,12 +11,12 @@ import {
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 
-import { useAuthStore } from '@/stores/auth';
-import { useWalletStore } from '@/stores/wallet';
+import { useAuthStore } from '@/hooks/useAuthStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
 import { accountName } from '@/utils/walletStore';
 import { nativeSymbol } from '@/utils/defi/bscRpc';
-import { useDefiNetwork } from '@/stores/defiNetwork';
-import { useTheme } from '@/utils/theme';
+import { useDefiNetwork } from '@/hooks/useDefiNetwork';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
 /** 地址截断：前8...后8 */
@@ -210,7 +210,6 @@ export default function WalletTab() {
       {/* 常用功能（所有功能需登录；未登录点击先调起登录页） */}
       <Text style={styles.listHeader}>{tt('wallet.tab.featuresHeader')}</Text>
       <View style={styles.listCard}>
-        <FeatureRow icon="🔑" label={tt('wallet.tab.exportMnemonic')} href="/wallet/export" disabled={!hasAccounts} />
         <FeatureRow icon="✍️" label={tt('wallet.tab.signMessage')} href="/wallet/sign" disabled={!hasAccounts} />
         <FeatureRow icon="💸" label={tt('wallet.tab.transfer')} href="/wallet/transactions" disabled={!hasAccounts} />
         <FeatureRow icon="➕" label={tt('wallet.tab.addAccount')} href="/wallet/add-account" disabled={!hasAccounts} />

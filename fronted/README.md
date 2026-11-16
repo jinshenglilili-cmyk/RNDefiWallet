@@ -17,16 +17,16 @@
 - **借贷**：Aave V3 存币生息——账户总览（总抵押 / 总负债 / 健康因子）、资产存入 / 取回
   （原生币自动 wrap / unwrap）
 - **钱包**：
-  - 创建 / 导入助记词钱包，BIP44 派生账号
-  - 新增账号三种方式：助记词派生 / 导入私钥 / 独立新助记词
-  - 收发转账（转账记录本地保存，含 DeFi 交易记录）、信息签名、导出助记词
+  - 创建 / 导入助记词钱包：助记词仅在创建时展示一次，不落盘；本地只保存派生出的账号私钥
+  - 新增账号两种方式：导入私钥 / 助记词创建账号（随机生成或输入已有助记词，同样只存私钥）
+  - 收发转账（转账记录本地保存，含 DeFi 交易记录）、信息签名（签名一律使用账号私钥）
   - WalletConnect 连接外部 DApp（连接钱包）
 - **浏览器**：内置 DApp 浏览器（WebView + 注入 Provider），可连接 DApp
 - **设置**：语言切换（跟随系统 / 简体中文 / English）、DeFi 网络切换、主题、退出登录
 
 ### DeFi 多网络
 
-三套网络配置集中在 [src/utils/defi/tokens.js](src/utils/defi/tokens.js)，设置页一键切换、即时生效（无需重启）：
+网络选择与三套网络配置集中在 [src/hooks/useDefiNetwork.js](src/hooks/useDefiNetwork.js)（zustand store + `net()` 配置），设置页一键切换、即时生效（无需重启）：
 
 | 网络 | DEX | 借贷 | 1inch | 说明 |
 | ---- | --- | ---- | ----- | ---- |
@@ -69,15 +69,18 @@ RNDefiWallet/
         │   ├── defi/          # DeFi 二级页：lp/[symbol]、lend/[symbol]
         │   ├── market/        # 币种详情
         │   ├── settings/      # 设置（语言 / DeFi 网络）
-        │   ├── wallet/        # 创建/导入/新增账号/转账记录/签名/导出
+        │   ├── wallet/        # 创建/导入/新增账号/转账记录/签名
         │   └── wc/            # WalletConnect 连接
-        ├── stores/            # zustand：auth.js / wallet.js / defiNetwork.js
+        ├── hooks/             # 全部 Hook（zustand store 与 React Hook）
+        │   ├── useAuthStore.js / useWalletStore.js
+        │   ├── useDefiNetwork.js # DeFi 网络选择 + 三网络配置（net()）
+        │   ├── useTheme.js    # 主题（含 lightColors 等固定色值）
+        │   └── useUserInfo.js  # DeFi 账户余额（登录态/当前账号/原生币与代币余额）
         ├── utils/
-        │   ├── defi/          # DeFi 服务层：tokens.js（网络配置）/ pancake.js /
-        │   │                  #   aave.js / oneInch.js / bscRpc.js / txSender.js /
-        │   │                  #   erc20.js / useBscWallet.js
+        │   ├── defi/          # DeFi 服务层：pancake.js /
+        │   │                  #   aave.js / oneInch.js / bscRpc.js / txSender.js / erc20.js
         │   ├── walletStore.js / request.js / rpc.js / coingecko.js
-        │   └── injectedProvider.js / walletConnect.js / theme.js / format.js
+        │   └── injectedProvider.js / walletConnect.js / format.js / portfolioStore.js
         ├── i18n/              # locales/{zh,en}/ 多语言文案
         └── components/
             └── defi/          # DeFi 三 tab 共用组件（引导页 / 代币 sheet / 记录写入）
@@ -140,7 +143,7 @@ flowchart TB
         PAGES["二级页面<br/>defi/lp/[symbol] · defi/lend/[symbol]<br/>market/[id] · wallet/* · browser · settings · wc · auth(模态)"]
     end
 
-    subgraph STORE["状态层（src/stores，zustand）"]
+    subgraph STORE["Hook 层（src/hooks，zustand / React Hook）"]
         AUTH["useAuthStore<br/>session / userInfo<br/>signIn / signUp / signOut / fetchProfile"]
         WALLET["useWalletStore<br/>meta / balance / ready / switchAccount"]
         NET["useDefiNetwork<br/>bsc / ethereum / sepolia<br/>设置页切换，AsyncStorage 持久化"]
@@ -148,7 +151,7 @@ flowchart TB
 
     subgraph UTIL["服务层（src/utils）"]
         WS["walletStore.js<br/>钱包本地存储（按登录账号隔离）"]
-        DEFNI["defi/tokens.js<br/>三网络配置（合约地址/代币清单）<br/>net() 调用时现场读取"]
+        DEFNI["hooks/useDefiNetwork.js<br/>网络选择 + 三网络配置（合约地址/代币清单）<br/>net() 调用时现场读取"]
         DEX["defi/pancake.js<br/>V2 DEX 报价/兑换/流动性"]
         AAVE["defi/aave.js<br/>Aave V3 Pool/DataProvider/Oracle"]
         OI["defi/oneInch.js<br/>1inch 聚合器（按链号拼 URL）"]
@@ -159,7 +162,7 @@ flowchart TB
         CG["coingecko.js<br/>行情 API"]
         WC["walletConnect.js<br/>WalletConnect 会话"]
         IP["injectedProvider.js<br/>WebView 注入 Provider"]
-        THEME["theme.js / format.js"]
+        THEME["hooks/useTheme.js / format.js"]
     end
 
     subgraph NATIVE["原生 / 系统能力"]
@@ -218,7 +221,7 @@ flowchart LR
     SET["设置页 pickNetwork"] -->|setNetwork| ZS["useDefiNetwork（zustand）"]
     ZS -->|AsyncStorage 持久化| DISK[("defi.network.choice")]
     ZS -->|订阅组件重渲染| TABS["Swap / LP / 借贷 Tab"]
-    ZS -->|getState| TOKENS["defi/tokens.js net()"]
+    ZS -->|net 现场读取| TOKENS["useDefiNetwork.js net()"]
 
     subgraph NETS["三份网络配置（net() 调用时读取）"]
         BSC["BSC：PancakeSwap V2 + Aave V3 + 1inch(56)"]
@@ -246,14 +249,14 @@ flowchart LR
     SWN --> NSN
 
     subgraph KEYCHAIN["SecureStore（Keychain，敏感数据）"]
-        SS1["wallet.u1.wallet.mnemonic<br/>wallet.u1.wallet.pk.&lt;地址&gt;<br/>wallet.u1.wallet.account-mnemonic.&lt;地址&gt;"]
+        SS1["wallet.u1.wallet.pk.&lt;地址&gt;<br/>（各账号私钥；助记词不落盘）"]
     end
 
     subgraph MANIFEST["AsyncStorage（非敏感数据）"]
-        NS1["wallet.u1.*<br/>wallet.meta（账号列表/当前账号）<br/>wallet.transactions（转账/DeFi 记录）"]
+        NS1["wallet.u1.*<br/>wallet.data（用户信息单对象：meta + transactions）<br/>wallet.activeOwner（当前归属）"]
         NSN["wallet.none.*<br/>（未登录空命名空间，与用户数据隔离）"]
         NS2["wallet.u2.*<br/>（其他登录用户，互不可见）"]
-        LEGACY["旧版键 wallet.archive.* / 明文键<br/>→ migrateLegacyInto 一次性迁移"]
+        LEGACY["旧版键 wallet.archive.* / 分键 wallet.meta / 明文键<br/>→ migrateLegacyInto + getUserData 一次性收敛为 wallet.data"]
     end
 ```
 
@@ -278,12 +281,13 @@ sequenceDiagram
 
 ### 架构要点
 
-- **状态管理（zustand）**：[src/stores/auth.js](src/stores/auth.js) 管登录态与用户信息；[src/stores/wallet.js](src/stores/wallet.js) 管钱包元数据与余额；[src/stores/defiNetwork.js](src/stores/defiNetwork.js) 管 DeFi 网络（三网络持久化）。
+- **状态管理（zustand）**：[src/hooks/useAuthStore.js](src/hooks/useAuthStore.js) 管登录态与用户信息；[src/hooks/useWalletStore.js](src/hooks/useWalletStore.js) 管钱包元数据与余额；[src/hooks/useDefiNetwork.js](src/hooks/useDefiNetwork.js) 管 DeFi 网络（三网络持久化）。
 - **钱包存储（按登录账号隔离）**：[src/utils/walletStore.js](src/utils/walletStore.js)
-  - 助记词、私钥存 SecureStore（Keychain/Keystore）；账号列表、交易记录等非敏感数据存 AsyncStorage
+  - 一个登录 uid 对应一份用户信息对象（单键 `wallet.u<uid>.wallet.data` = `{ meta, transactions }`）；各账号私钥存 SecureStore（Keychain/Keystore），不进对象；助记词只在创建/导入账号那一刻用于派生私钥，展示一次后不落盘
+  - [src/hooks/useWalletStore.js](src/hooks/useWalletStore.js) 持有这份对象的内存副本作为跨页面唯一数据源：所有增删改走 hook action（先更新内存 → 订阅组件同步刷新 → 整体写回存储）
   - 所有键按登录用户加命名空间前缀 `wallet.u<uid>.`，未登录落在隔离的 `wallet.none.` 空命名空间
-  - 退出登录只是切换前缀，数据不搬家；重新登录原样恢复；旧版数据由 `migrateLegacyInto` 一次性迁移
-- **DeFi 网络抽象**：[src/utils/defi/tokens.js](src/utils/defi/tokens.js) 集中三份网络配置（合约地址 / 代币清单 / RPC），其余代码全部通过 `net()` 调用时读取——切换网络不散落任何 if/else
+  - 退出登录只是切换前缀，数据不搬家；重新登录原样恢复；旧版数据（归档键/分键/明文键）由 `migrateLegacyInto` 一次性收敛为单对象格式
+- **DeFi 网络抽象**：[src/hooks/useDefiNetwork.js](src/hooks/useDefiNetwork.js) 集中网络选择（zustand）与三份网络配置（合约地址 / 代币清单 / RPC），其余代码全部通过 `net()` 调用时读取——切换网络不散落任何 if/else
 - **签名通道**：[src/utils/defi/txSender.js](src/utils/defi/txSender.js) 复用 `modules/wallet` 原生签名（Trust Wallet Core），签名前弹确认（方法 / 金额 / gas），带固有 gas 下限与回执等待
 - **HTTP 封装**：[src/utils/request.js](src/utils/request.js)，接口统一返回 `{status, message, data}`；401 自动跳登录
 - **国际化**：[src/i18n/](src/i18n/index.js)，i18n-js，zh / en 两种语言（跟随系统可切换），链名 / 原生币符号等动态参数经插值传入

@@ -4,6 +4,7 @@
 
 - 助记词生成 / 校验 / 导入（BIP39，12 或 24 词）
 - 多链地址派生（BIP44 默认路径）：**Ethereum / TRON / Bitcoin**
+- 以太坊私钥派生（`derivePrivateKey`，BIP44 按序号派生）
 - 消息签名（ETH EIP-191、TRON、BTC）
 - 交易签名（ETH Legacy 转账、TRON TRX 转账、BTC UTXO 转账）
 

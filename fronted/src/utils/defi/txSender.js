@@ -4,8 +4,8 @@
 // chainId 取当前 DeFi 网络（BSC 56 / Ethereum 1 / Sepolia 11155111）。
 // DeFi 调用 = 合约 to + data（+ 可选 value）。
 //
-// 流程：取签名凭据（助记词账号走 signTransaction，私钥导入账号走
-// signTransactionWithPrivateKey）→ nonce/gasPrice/estimateGas → 签名 → 广播 → 等回执。
+// 流程：取签名凭据（各账号私钥，助记词不落盘）→ nonce/gasPrice/estimateGas
+// → 签名 → 广播 → 等回执。
 
 import { Alert } from 'react-native';
 
@@ -16,7 +16,7 @@ import { getNonce, getGasPrice, estimateGas, sendRawTransaction, waitForReceipt,
 import { formatEther } from '../format';
 
 /**
- * 确认当前账号可签交易（有账号即可：助记词账号与私钥导入账号都有签名通道），返回地址
+ * 确认当前账号可签交易（有账号即可，所有账号都走私钥签名通道），返回地址
  * @param {object} meta 钱包元数据
  */
 export async function assertSigningAccount(meta) {
@@ -25,12 +25,12 @@ export async function assertSigningAccount(meta) {
   return addr;
 }
 
-/** 按签名凭据类型选择原生签名方法（sign: { mnemonic } 或 { privateKey }） */
+/** 私钥签名通道（sign: getSigningCredential 返回值；无私钥直接报错） */
 function signRawTx(sign, params) {
-  if (sign?.privateKey) {
-    return Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, params);
+  if (!sign?.privateKey) {
+    throw new Error(tt('wallet.sign.noPrivateKey'));
   }
-  return Wallet.signTransaction('ethereum', sign.mnemonic, params);
+  return Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, params);
 }
 
 /** 地址中间截断（签名确认弹框用） */
@@ -85,7 +85,7 @@ function requestSignConfirm({ from, to, valueWei, gasLimit, method, data }) {
  * @param {string} opts.data calldata（hex，带 0x）
  * @param {bigint|string} [opts.valueWei] 随交易发送的原生币（wei）
  * @param {string} opts.from 发起地址
- * @param {{ mnemonic?: string, privateKey?: string }} opts.sign 签名凭据（getSigningCredential 返回值）
+ * @param {{ privateKey?: string }} opts.sign 签名凭据（getSigningCredential 返回值）
  * @returns {Promise<string>} 交易哈希
  */
 export async function signAndSend({ to, data, valueWei = 0n, from, sign, method }) {

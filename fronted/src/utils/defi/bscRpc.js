@@ -1,11 +1,11 @@
 // DeFi JSON-RPC 客户端（Swap/LP/借贷三个 tab 共用）
 //
-// RPC 地址按当前 DeFi 网络（BSC 主网 / Sepolia 测试网，见 utils/defi/tokens.js
-// 与 stores/defiNetwork.js）现场读取，切换网络后无需重启。
+// RPC 地址按当前 DeFi 网络（BSC 主网 / Sepolia 测试网，见 hooks/useDefiNetwork.js
+// 与 hooks/useDefiNetwork.js）现场读取，切换网络后无需重启。
 // 与主网 rpc.js 分开，避免互相影响（转账页仍走主网）。
 
 import { t as tt } from '@/i18n';
-import { net } from './tokens';
+import { net } from '@/hooks/useDefiNetwork';
 
 let nextId = 1;
 

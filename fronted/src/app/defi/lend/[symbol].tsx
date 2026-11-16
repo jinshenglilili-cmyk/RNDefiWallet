@@ -13,9 +13,10 @@ import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
-import { useTheme } from '@/utils/theme';
-import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { net, aaveWrappedAddress, wrappedSymbol, tokenBySymbol } from '@/utils/defi/tokens';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useTheme } from '@/hooks/useTheme';
+import { useUserInfo } from '@/hooks/useUserInfo';
+import { net, aaveWrappedAddress, wrappedSymbol, tokenBySymbol } from '@/hooks/useDefiNetwork';
 import * as aave from '@/utils/defi/aave';
 import { balanceOf, wbnbDepositData, wbnbWithdrawData } from '@/utils/defi/erc20';
 import { formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
@@ -33,7 +34,7 @@ export default function LendDetail() {
   const symbol = String(Array.isArray(params.symbol) ? params.symbol[0] : params.symbol || '');
   const token = tokenBySymbol(symbol);
   const t = useTheme();
-  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useBscWallet();
+  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useUserInfo();
   const styles = makeStyles(t);
 
   const [asset, setAsset] = useState(null); // 储备资产地址（原生币 → wrapped）
@@ -101,7 +102,7 @@ export default function LendDetail() {
       steps.push({ label: tt('defi.lend.stepApprove', { symbol }), approve: asset, amountWei: amt });
       steps.push({ label: tt('defi.lend.stepSupply'), to: pool, data: aave.supplyData(asset, amt, address), valueWei: 0n, method: 'supply (Aave Pool)' });
 
-      const record = await recordDefiTx(walletStore, {
+      const record = await recordDefiTx({
         from: address,
         to: pool,
         amount: tt('defi.lend.recordSupply', { amount, symbol }),
@@ -131,7 +132,7 @@ export default function LendDetail() {
         if (txHash) lastHash = txHash;
         if (!ok) break;
       }
-      await walletStore.updateTransaction(record.id, {
+      await useWalletStore.getState().updateTransaction(record.id, {
         status: ok ? tt('common.success') : tt('common.failed'),
         txHash: lastHash,
         error: ok ? undefined : tt('defi.common.revert'),
@@ -161,7 +162,7 @@ export default function LendDetail() {
       const isNative = token.native;
       const sign = await walletStore.getSigningCredential(address);
 
-      const record = await recordDefiTx(walletStore, {
+      const record = await recordDefiTx({
         from: address,
         to: pool,
         amount: tt('defi.lend.recordWithdraw', { amount, symbol }),
@@ -195,7 +196,7 @@ export default function LendDetail() {
           // WBNB 留在钱包里，可后续手动解包
         }
       }
-      await walletStore.updateTransaction(record.id, {
+      await useWalletStore.getState().updateTransaction(record.id, {
         status: ok ? tt('common.success') : tt('common.failed'),
         txHash: lastHash,
         error: ok ? undefined : tt('defi.common.revert'),

@@ -25,7 +25,7 @@ import { Animated } from 'react-native';
 import { getMarkets, getGlobal } from '@/utils/coingecko';
 import * as portfolioStore from '@/utils/portfolioStore';
 import { t as tt } from '@/i18n';
-import { useTheme, formatPercent } from '@/utils/theme';
+import { useTheme, formatPercent } from '@/hooks/useTheme';
 import { formatBig, formatCurrency, formatCurrency6 } from '@/utils/format';
 
 /** 价格格式：千分位 + 2~6 位小数（对齐参考项目 asCurrencyWith6Decimals） */

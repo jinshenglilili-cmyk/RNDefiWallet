@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, Modal, ScrollView } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useTheme } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 import Wallet from '@wallet';
-import * as walletStore from '@/utils/walletStore';
-import { accountType, getPrivateKey } from '@/utils/walletStore';
+import { getPrivateKey } from '@/utils/walletStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
 import * as walletConnect from '@/utils/walletConnect';
 import { t as tt } from '@/i18n';
 
 /**
  * 信息签名：对一段文本做 personal_sign 签名并展示结果
- * - 内嵌账号（助记词 / 导入私钥）：生物识别验证后本地签名
+ * - 内嵌账号：生物识别验证后用本地私钥签名
  * - 外部钱包：通过 WalletConnect 让外部钱包签名
  */
 export default function SignMessage() {
   const t = useTheme();
-  const [meta, setMeta] = useState(null);
+  // 账号列表从 useWalletStore 取（全局共享，新增/删除账号后自动同步）
+  const meta = useWalletStore((s) => s.meta);
   const [message, setMessage] = useState('Hello RNDefiWallet');
   const [source, setSource] = useState('embedded'); // 'embedded' | 'external'
   const [wcSession, setWcSession] = useState(null);
@@ -26,7 +27,6 @@ export default function SignMessage() {
 
   useEffect(() => {
     (async () => {
-      setMeta(await walletStore.getMeta());
       if (walletConnect.isConfigured()) {
         walletConnect
           .restoreSession()
@@ -38,27 +38,17 @@ export default function SignMessage() {
 
   const hasAccounts = !!meta && meta.accounts.length > 0;
   const current = hasAccounts ? meta.accounts[meta.current] : '';
-  const type = hasAccounts ? accountType(meta, meta.current) : 'mnemonic';
-  const typeLabel = type === 'private-key' ? tt('wallet.sign.typePrivateKey') : tt('wallet.sign.typeMnemonic');
   const hasExternal = !!wcSession;
 
-  /** 内嵌账号：生物识别 -> 本地签名 */
+  /** 内嵌账号：生物识别 -> 本地私钥签名 */
   async function signEmbedded() {
     const ok = await requireBiometric();
     if (!ok) return;
     try {
       setBusy(true);
-      let signature;
-      if (type === 'private-key') {
-        const pk = await getPrivateKey(current);
-        if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
-        signature = await Wallet.signMessageWithPrivateKey(pk, message);
-      } else {
-        // 独立助记词账号优先用自己的助记词，派生账号用根助记词
-        const m = await walletStore.getSigningMnemonic(current, meta.current);
-        if (!m) throw new Error(tt('wallet.sign.noMnemonic'));
-        signature = await Wallet.signMessage('ethereum', m, message);
-      }
+      const pk = await getPrivateKey(current);
+      if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
+      const signature = await Wallet.signMessageWithPrivateKey(pk, message);
       setResult({ address: current, message, signature, source: 'embedded' });
     } catch (err) {
       Alert.alert(tt('wallet.sign.failed'), String(err.message ?? err));
@@ -125,7 +115,7 @@ export default function SignMessage() {
             </Text>
             {hasAccounts && source === 'embedded' ? (
               <Text style={styles.sourceBtnSub}>
-                {typeLabel} · {shorten(current)} · {tt('wallet.sign.biometricHint')}
+                {shorten(current)} · {tt('wallet.sign.biometricHint')}
               </Text>
             ) : null}
           </TouchableOpacity>
@@ -202,7 +192,7 @@ export default function SignMessage() {
   );
 }
 
-/** 生物识别（同导出助记词的验证逻辑） */
+/** 生物识别（签名前验证本人操作） */
 async function requireBiometric() {
   try {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();

@@ -1,11 +1,11 @@
 import { SplashScreen } from 'expo-router';
 
-import { useSession } from '@/utils/ctx';
+import { useAuthStore } from '@/hooks/useAuthStore';
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 export function SplashScreenController() {
-  const { isLoading } = useSession();
+  const { isLoading } = useAuthStore();
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {

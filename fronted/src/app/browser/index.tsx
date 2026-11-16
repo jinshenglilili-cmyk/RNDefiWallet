@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useTheme } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
 /** 常用 DApp 快捷入口（desc 存 i18n key，渲染时取词） */

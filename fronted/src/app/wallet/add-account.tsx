@@ -1,64 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
-import { useAuthStore } from '@/stores/auth';
-import { useTheme } from '@/utils/theme';
+import { useAuthStore } from '@/hooks/useAuthStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
 /**
- * 新增账号：三种方式
- * - 派生新账号：同一助记词按 BIP44 序号派生（有根助记词钱包时显示）
+ * 新增账号：两种方式
  * - 导入私钥：粘贴以太坊私钥，独立账号
- * - 创建助记词：生成一套新助记词，作为独立账号
+ * - 创建助记词账号：随机生成或输入已有助记词，派生出私钥后只存私钥，
+ *   助记词仅随机生成时展示一次，不落盘
  */
 export default function AddAccount() {
   const t = useTheme();
   const router = useRouter();
-  const [mode, setMode] = useState(null); // null=选方式，'derive' | 'private-key' | 'mnemonic'
-  const [hasRootMnemonic, setHasRootMnemonic] = useState(null);
+  const [mode, setMode] = useState(null); // null=选方式，'private-key' | 'mnemonic'
   const [privateKey, setPrivateKey] = useState('');
-  const [mnemonic, setMnemonic] = useState(null);
+  const [typedMnemonic, setTypedMnemonic] = useState('');
+  const [generated, setGenerated] = useState(null); // 随机生成的助记词（展示一次）
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const styles = makeStyles(t);
+  // 账号列表从 useWalletStore 取（全局共享，新增账号后立即同步）
+  const meta = useWalletStore((s) => s.meta);
 
-  useEffect(() => {
-    walletStore.getMnemonic().then((m) => setHasRootMnemonic(!!m));
-  }, []);
-
-  async function nextIndex() {
-    const meta = await walletStore.getMeta();
-    return meta.accounts.length;
+  /** 新账号的序号 = 当前账号列表长度 */
+  function nextIndex() {
+    return meta?.accounts.length ?? 0;
   }
 
-  /** 方式一：现有助记词派生下一个序号地址 */
-  async function handleDerive() {
-    try {
-      setBusy(true);
-      const mnemonic = await walletStore.getMnemonic();
-      if (!mnemonic) {
-        Alert.alert(tt('wallet.addAccount.error'), tt('wallet.addAccount.noRootMnemonic'));
-        return;
-      }
-      const index = await nextIndex();
-      const address = await Wallet.deriveAddress('ethereum', mnemonic, index);
-      await walletStore.addAccount(mnemonic, index, address);
-      await useAuthStore.getState().ensureOwnerBound().catch(() => {});
-      await walletStore.switchAccount(index);
-      Alert.alert(tt('wallet.addAccount.addSuccessTitle'), tt('wallet.addAccount.addSuccessMsg', { index: index + 1, addr: address }), [
-        { text: tt('wallet.common.ok'), onPress: () => router.back() },
-      ]);
-    } catch (err) {
-      Alert.alert(tt('wallet.addAccount.addFailed'), String(err.message ?? err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** 方式二：导入私钥 */
+  /** 方式一：导入私钥 */
   async function handleImportKey() {
     // 兼容带/不带 0x 前缀（去除首尾空白后统一补 0x 再校验）
     const raw = privateKey.trim().replace(/\s+/g, '');
@@ -71,8 +46,8 @@ export default function AddAccount() {
       setBusy(true);
       const { address } = await Wallet.importPrivateKey(key);
       await walletStore.savePrivateKey(address, key);
-      const index = await nextIndex();
-      await walletStore.addAccount(null, index, address, 'private-key');
+      const index = nextIndex();
+      await useWalletStore.getState().addAccount(address, 'private-key');
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
       Alert.alert(tt('wallet.addAccount.addSuccessTitle'), tt('wallet.addAccount.addSuccessMsg', { index: index + 1, addr: address }), [
         { text: tt('wallet.common.ok'), onPress: () => router.back() },
@@ -84,11 +59,11 @@ export default function AddAccount() {
     }
   }
 
-  /** 方式三：创建新助记词，作为独立账号 */
+  /** 方式二：随机生成一套新助记词（只展示一次，确认后即丢弃） */
   async function handleGenerate() {
     try {
       setBusy(true);
-      setMnemonic(await Wallet.generateMnemonic(128));
+      setGenerated(await Wallet.generateMnemonic(128));
     } catch (err) {
       Alert.alert(tt('wallet.addAccount.generateFailed'), String(err.message ?? err));
     } finally {
@@ -96,16 +71,22 @@ export default function AddAccount() {
     }
   }
 
-  async function handleConfirmMnemonic() {
+  /** 用一套助记词创建账号：派生 index 0 私钥保存，助记词不落盘 */
+  async function createFromMnemonic(mnemonic) {
+    const normalized = mnemonic.trim().replace(/\s+/g, ' ').toLowerCase();
+    const valid = await Wallet.validateMnemonic(normalized);
+    if (!valid) {
+      Alert.alert(tt('wallet.addAccount.error'), tt('wallet.import.invalid'));
+      return;
+    }
     try {
       setBusy(true);
-      const wallet = await Wallet.importWallet(mnemonic);
-      const address = wallet.addresses.ethereum;
-      await walletStore.saveAccountMnemonic(address, mnemonic);
-      const index = await nextIndex();
-      await walletStore.addAccount(null, index, address);
+      const privateKey = await Wallet.derivePrivateKey('ethereum', normalized, 0);
+      const { address } = await Wallet.importPrivateKey(privateKey);
+      await walletStore.savePrivateKey(address, privateKey);
+      const index = nextIndex();
+      await useWalletStore.getState().addAccount(address);
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
-      await walletStore.switchAccount(index);
       Alert.alert(tt('wallet.addAccount.addSuccessTitle'), tt('wallet.addAccount.addSuccessMsg', { index: index + 1, addr: address }), [
         { text: tt('wallet.common.ok'), onPress: () => router.back() },
       ]);
@@ -116,21 +97,21 @@ export default function AddAccount() {
     }
   }
 
+  /** 用户输入的助记词直接创建 */
+  function handleCreateTyped() {
+    createFromMnemonic(typedMnemonic);
+  }
+
+  /** 展示过一次的随机助记词，勾选备份后创建 */
+  function handleConfirmGenerated() {
+    createFromMnemonic(generated);
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {!mode ? (
         <>
           <Text style={styles.hint}>{tt('wallet.addAccount.chooseMethod')}</Text>
-          {hasRootMnemonic ? (
-            <TouchableOpacity style={styles.option} disabled={busy} onPress={() => setMode('derive')}>
-              <Text style={styles.optionIcon}>🌿</Text>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>{tt('wallet.addAccount.deriveTitle')}</Text>
-                <Text style={styles.optionDesc}>{tt('wallet.addAccount.deriveDesc')}</Text>
-              </View>
-              <Text style={styles.optionChevron}>›</Text>
-            </TouchableOpacity>
-          ) : null}
           <TouchableOpacity style={styles.option} disabled={busy} onPress={() => setMode('private-key')}>
             <Text style={styles.optionIcon}>🔑</Text>
             <View style={styles.optionInfo}>
@@ -146,13 +127,6 @@ export default function AddAccount() {
               <Text style={styles.optionDesc}>{tt('wallet.addAccount.createMnemonicDesc')}</Text>
             </View>
             <Text style={styles.optionChevron}>›</Text>
-          </TouchableOpacity>
-        </>
-      ) : mode === 'derive' ? (
-        <>
-          <Text style={styles.hint}>{tt('wallet.addAccount.deriveHint')}</Text>
-          <TouchableOpacity style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={handleDerive}>
-            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.deriving') : tt('wallet.addAccount.deriveButton')}</Text>
           </TouchableOpacity>
         </>
       ) : mode === 'private-key' ? (
@@ -177,18 +151,40 @@ export default function AddAccount() {
             <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.importing') : tt('wallet.addAccount.importKeyButton')}</Text>
           </TouchableOpacity>
         </>
-      ) : !mnemonic ? (
+      ) : !generated ? (
         <>
           <Text style={styles.warn}>{tt('wallet.addAccount.mnemonicWarning')}</Text>
-          <TouchableOpacity style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={handleGenerate}>
-            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.generating') : tt('wallet.addAccount.generate')}</Text>
+          <TextInput
+            style={styles.input}
+            value={typedMnemonic}
+            onChangeText={setTypedMnemonic}
+            placeholder={tt('wallet.addAccount.mnemonicPlaceholder')}
+            placeholderTextColor={t.secondaryText}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.secondaryButton, busy && styles.disabled]}
+            disabled={busy}
+            onPress={handleGenerate}
+          >
+            <Text style={styles.secondaryButtonText}>{busy ? tt('wallet.addAccount.generating') : tt('wallet.addAccount.generate')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, (!typedMnemonic.trim() || busy) && styles.disabled]}
+            disabled={!typedMnemonic.trim() || busy}
+            onPress={handleCreateTyped}
+          >
+            <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.creating') : tt('wallet.addAccount.createNow')}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
           <Text style={styles.warn}>{tt('wallet.addAccount.writeDown')}</Text>
           <View style={styles.mnemonicCard}>
-            {mnemonic.split(' ').map((word, i) => (
+            {generated.split(' ').map((word, i) => (
               <View style={styles.wordChip} key={`${word}-${i}`}>
                 <Text style={styles.wordIndex}>{i + 1}</Text>
                 <Text style={styles.word}>{word}</Text>
@@ -202,7 +198,7 @@ export default function AddAccount() {
           <TouchableOpacity
             style={[styles.button, (!confirmed || busy) && styles.disabled]}
             disabled={!confirmed || busy}
-            onPress={handleConfirmMnemonic}
+            onPress={handleConfirmGenerated}
           >
             <Text style={styles.buttonText}>{busy ? tt('wallet.addAccount.creating') : tt('wallet.addAccount.createButton')}</Text>
           </TouchableOpacity>
@@ -322,12 +318,26 @@ const makeStyles = (t) =>
       backgroundColor: t.accent,
       justifyContent: 'center',
       alignItems: 'center',
+      marginTop: 16,
+    },
+    secondaryButton: {
+      height: 48,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: t.accent,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     disabled: {
       opacity: 0.5,
     },
     buttonText: {
       color: t.background,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    secondaryButtonText: {
+      color: t.accent,
       fontSize: 15,
       fontWeight: '600',
     },

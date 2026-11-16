@@ -3,11 +3,12 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from 'rea
 import { useRouter } from 'expo-router';
 import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
-import { useAuthStore } from '@/stores/auth';
-import { useTheme } from '@/utils/theme';
+import { useAuthStore } from '@/hooks/useAuthStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
-/** 创建钱包：生成助记词 -> 抄写确认 -> 保存并派生账号 0（导入私钥/新助记词在「新增账号」里） */
+/** 创建钱包：生成助记词 -> 抄写确认 -> 派生私钥保存（助记词只展示一次，不落盘） */
 export default function CreateWallet() {
   const t = useTheme();
   const router = useRouter();
@@ -30,10 +31,12 @@ export default function CreateWallet() {
   async function handleConfirm() {
     try {
       setBusy(true);
-      await walletStore.saveMnemonic(mnemonic);
-      // 派生默认账号（index 0）的 ETH 地址
-      const address = await Wallet.deriveAddress('ethereum', mnemonic, 0);
-      await walletStore.addAccount(mnemonic, 0, address);
+      // 助记词只在这一刻使用：派生 index 0 私钥后即丢弃（助记词不落盘，签名全走私钥）
+      const privateKey = await Wallet.derivePrivateKey('ethereum', mnemonic, 0);
+      const { address } = await Wallet.importPrivateKey(privateKey);
+      await walletStore.savePrivateKey(address, privateKey);
+      // 账号列表走 useWalletStore（内存更新 + 整体写回存储）
+      await useWalletStore.getState().addAccount(address);
       // 新钱包立即绑定给当前登录用户（退出登录时才能正确归档）
       await useAuthStore.getState().ensureOwnerBound().catch(() => {});
       Alert.alert(tt('wallet.create.createSuccessTitle'), tt('wallet.create.createSuccessMsg'), [

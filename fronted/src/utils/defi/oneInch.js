@@ -5,11 +5,11 @@
 // 都拿不到时抛出可读错误，UI 引导用户回退 V2 DEX 链上报价。
 //
 // Swap tab 的「1inch」选项就是走这里（实验性，网络可达时可用）。
-// 链由 net().chainId 决定（tokens.js 里 oneInch: false 的网络不展示该选项，
+// 链由 net().chainId 决定（useDefiNetwork.js 里 oneInch: false 的网络不展示该选项，
 // 如 Sepolia —— 1inch 不支持测试网）。
 
 import { t as tt } from '@/i18n';
-import { net } from '@/utils/defi/tokens';
+import { net } from '@/hooks/useDefiNetwork';
 
 /** 当前网络的 1inch API 基地址（chainId 拼在路径里） */
 function bases() {

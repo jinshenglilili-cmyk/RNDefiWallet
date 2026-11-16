@@ -3,10 +3,11 @@
 import { Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useTheme } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
-import { useDefiNetwork } from '@/stores/defiNetwork';
-import { getTokens, net } from '@/utils/defi/tokens';
+import { useDefiNetwork } from '@/hooks/useDefiNetwork';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { getTokens, net } from '@/hooks/useDefiNetwork';
 import { formatTokenAmount } from '@/utils/defi/format';
 
 /** 通用守卫：未登录 / 没有钱包账号时渲染引导页（有账号渲染 children） */
@@ -133,12 +134,11 @@ export function TokenSheet({ visible, balances, nativeBalance, onSelect, onClose
   );
 }
 
-/** 写一条 DeFi 交易记录（复用钱包页的交易历史；chain 按当前 DeFi 网络） */
-export async function recordDefiTx(walletStore, record) {
-  const network = useDefiNetwork.getState().network;
-  return walletStore.addTransaction({
+/** 写一条 DeFi 交易记录（复用钱包页的交易历史；写入 useWalletStore，钱包/转账页同步刷新） */
+export async function recordDefiTx(record) {
+  return useWalletStore.getState().addTransaction({
     type: 'defi',
-    chain: network, // 'bsc' | 'ethereum' | 'sepolia'（钱包侧 chains i18n 已含全部 key）
+    chain: useDefiNetwork.getState().network, // 'bsc' | 'ethereum' | 'sepolia'
     chainSymbol: net().nativeSymbol,
     ...record,
   });

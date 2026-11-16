@@ -1,15 +1,15 @@
 // DeFi 三个 tab 共用的钱包状态 Hook：
 // 登录态 + 当前账号 + 原生币/各代币余额（当前 DeFi 网络链上实时读）
-// 网络（BSC / Sepolia）来自 stores/defiNetwork；切换时自动重拉余额。
+// 网络（BSC / Sepolia）来自 hooks/useDefiNetwork；切换时自动重拉余额。
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { useAuthStore } from '@/stores/auth';
-import { useWalletStore } from '@/stores/wallet';
-import { useDefiNetwork } from '@/stores/defiNetwork';
+import { useAuthStore } from '@/hooks/useAuthStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useDefiNetwork } from '@/hooks/useDefiNetwork';
 import { getBalance } from '@/utils/defi/bscRpc';
 import { balanceOf } from '@/utils/defi/erc20';
-import { getTokens } from '@/utils/defi/tokens';
+import { getTokens } from '@/hooks/useDefiNetwork';
 
 /**
  * @returns {{ session, meta, address, hasAccount, bnbBalance, balances, refresh }}
@@ -17,7 +17,7 @@ import { getTokens } from '@/utils/defi/tokens';
  * - bnbBalance: BigInt | null（原生 BNB，作 gas 用）
  * - balances: { [symbol]: BigInt }（含 BNB 与 WBNB）
  */
-export function useBscWallet() {
+export function useUserInfo() {
   const { session } = useAuthStore();
   const { meta } = useWalletStore();
   // 订阅 DeFi 网络：切换时重渲染并重新拉余额

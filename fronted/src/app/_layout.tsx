@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 import { Link, SplashScreen, Stack, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import screenOptions from '@/options/screenOptions';
 import { SplashScreenController } from '@/utils/splash';
 import { t as tt, useI18nLocale } from '@/i18n';
-import { useWalletStore } from '@/stores/wallet';
-import { useDefiNetwork } from '@/stores/defiNetwork';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useDefiNetwork } from '@/hooks/useDefiNetwork';
 
 export default function Layout() {
   // 订阅语言：切换语言时重新渲染，导航栏标题随语言刷新
@@ -35,7 +36,8 @@ export default function Layout() {
     // <Stack.Screen> 这个是注册单个页面，name 是路由名称，options 是页面配置
     // <Stack.Screen name="(tabs)" ... /> 注册 tab 容器（行情/浏览器/钱包）
     // <Stack.Screen name="auth/index" ... /> 会员登录 & 注册，模态弹窗，左上角关闭按钮，从底部滑入
-    <Stack screenOptions={screenOptions}>
+    <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+      <Stack screenOptions={screenOptions}>
         {/* tab 容器不再使用课程项目的公共导航栏（logo/铃铛/搜索），
             行情/浏览器/钱包各自渲染自己的页内导航 */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -49,7 +51,6 @@ export default function Layout() {
         <Stack.Screen name="wallet/add-account" options={{ title: tt('wallet.addAccount.title') }} />
         <Stack.Screen name="wallet/transactions" options={{ title: tt('wallet.transactions.title') }} />
         <Stack.Screen name="wallet/sign" options={{ title: tt('wallet.sign.title') }} />
-        <Stack.Screen name="wallet/export" options={{ title: tt('wallet.export.title') }} />
         {/* DeFi 二级页：LP / 借贷的操作页（从 tab 内 push 进入，带导航栏返回） */}
         <Stack.Screen name="defi/lp/[symbol]" options={{ title: tt('defi.lp.detailTitle') }} />
         <Stack.Screen name="defi/lend/[symbol]" options={{ title: tt('defi.lend.detailTitle') }} />
@@ -68,6 +69,7 @@ export default function Layout() {
         {/* 401 中转页：request.js 里 token 失效自动跳入，清登录态后 replace 回登录页 */}
         <Stack.Screen name="auth/sign-out" options={{ headerShown: false }} />
       </Stack>
+    </GestureHandlerRootView>
   );
 }
 const styles = StyleSheet.create({

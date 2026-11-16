@@ -9,9 +9,9 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { t as tt } from '@/i18n';
-import { useTheme } from '@/utils/theme';
-import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { getTokens, tokenBySymbol, wrappedAddress, net } from '@/utils/defi/tokens';
+import { useTheme } from '@/hooks/useTheme';
+import { useUserInfo } from '@/hooks/useUserInfo';
+import { getTokens, tokenBySymbol, wrappedAddress, net } from '@/hooks/useDefiNetwork';
 import * as pancake from '@/utils/defi/pancake';
 import { balanceOf } from '@/utils/defi/erc20';
 import { formatTokenAmount } from '@/utils/defi/format';
@@ -28,7 +28,7 @@ const POOL_SYMBOLS = () => getTokens().filter((t) => !t.native && !t.wrapped).ma
 export default function LpTab() {
   const t = useTheme();
   const router = useRouter();
-  const { session, hasAccount, address, network, refresh } = useBscWallet();
+  const { session, hasAccount, address, network, refresh } = useUserInfo();
   const styles = makeStyles(t);
 
   const headerSubtitle = network === 'sepolia'

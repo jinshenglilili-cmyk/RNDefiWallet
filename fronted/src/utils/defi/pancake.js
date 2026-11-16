@@ -4,7 +4,7 @@
 import { ethCall } from './bscRpc';
 import { t as tt } from '@/i18n';
 import { encodeCall, decodeWords, wordToAddress } from './abi';
-import { net, pathAddress } from './tokens';
+import { net, pathAddress } from '@/hooks/useDefiNetwork';
 import { parseEther, formatEther } from '../format';
 
 /** 交易 20 分钟后过期（deadline） */

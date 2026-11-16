@@ -11,18 +11,20 @@ import {
   Alert,
 } from 'react-native';
 import { Stack, useFocusEffect } from 'expo-router';
-import { Swipeable } from 'react-native-gesture-handler';
-import { Animated } from 'react-native';
+// RNGH v3 已从主入口移除 Swipeable，从子包导入 ReanimatedSwipeable（配合 reanimated）
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
 // 真实转账走当前 DeFi 网络的原生币（BSC 链 → BNB，Sepolia 测试网 → ETH），
 // RPC 与 chainId 都从 bscRpc 现场读取，切换网络后无需重启
-import { getBalance, getNonce, getGasPrice, estimateGas, sendRawTransaction, nativeSymbol, chainId } from '@/utils/defi/bscRpc';
-import { net } from '@/utils/defi/tokens';
-import { useDefiNetwork } from '@/stores/defiNetwork';
+import { getNonce, getGasPrice, estimateGas, sendRawTransaction, nativeSymbol, chainId } from '@/utils/defi/bscRpc';
+import { net } from '@/hooks/useDefiNetwork';
+import { useDefiNetwork } from '@/hooks/useDefiNetwork';
 import { parseEther, formatEther } from '@/utils/format';
-import { useTheme } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
 /** 区块链选择（对齐参考项目 ChainType.allCases 7 条链） */
@@ -63,9 +65,8 @@ function mockTxHash() {
  */
 export default function Transactions() {
   const t = useTheme();
-  const [list, setList] = useState([]);
-  const [meta, setMeta] = useState(null);
-  const [balance, setBalance] = useState(null);
+  // 数据全部来自 useWalletStore（整份用户信息：meta/交易记录/余额），增删改走 hook action
+  const { meta, transactions, balance, load, addTransaction, updateTransaction, deleteTransaction } = useWalletStore();
   const [refreshing, setRefreshing] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
 
@@ -78,20 +79,6 @@ export default function Transactions() {
   const defiNetwork = useDefiNetwork((s) => s.network);
 
   const styles = makeStyles(t);
-
-  const load = useCallback(async () => {
-    setList(await walletStore.getTransactions());
-    const m = await walletStore.getMeta();
-    setMeta(m);
-    const addr = m.accounts[m.current];
-    if (addr) {
-      try {
-        setBalance(formatEther(await getBalance(addr)));
-      } catch {
-        setBalance(null);
-      }
-    }
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -138,13 +125,14 @@ export default function Transactions() {
     }
   }
 
-  // 当前 DeFi 网络原生币：真实链上转账（签名凭据按账号类型自动选择 -> 广播）
+  // 当前 DeFi 网络原生币：真实链上转账（用当前账号私钥签名 -> 广播）
   async function sendRealEth(valueWei) {
     let record = null;
     try {
       setBusy(true);
       const sign = await walletStore.getSigningCredential(from);
-      record = await walletStore.addTransaction({
+      if (!sign.privateKey) throw new Error(tt('wallet.sign.noPrivateKey'));
+      record = await addTransaction({
         type: 'transfer',
         from,
         to: to.trim(),
@@ -154,7 +142,6 @@ export default function Transactions() {
         status: tt('common.processing'),
       });
       setSheetVisible(false);
-      setList(await walletStore.getTransactions());
 
       const [nonce, gasPrice] = await Promise.all([getNonce(from), getGasPrice()]);
       const gasLimit = await estimateGas({
@@ -162,28 +149,19 @@ export default function Transactions() {
         to: to.trim(),
         value: '0x' + valueWei.toString(16),
       });
-      const rawTx = await (sign.privateKey
-        ? Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, {
-            chainId: chainId(),
-            nonce,
-            gasPrice,
-            gasLimit,
-            to: to.trim(),
-            value: valueWei.toString(10),
-          })
-        : Wallet.signTransaction('ethereum', sign.mnemonic, {
-            chainId: chainId(),
-            nonce,
-            gasPrice,
-            gasLimit,
-            to: to.trim(),
-            value: valueWei.toString(10),
-          }));
+      const rawTx = await Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, {
+        chainId: chainId(),
+        nonce,
+        gasPrice,
+        gasLimit,
+        to: to.trim(),
+        value: valueWei.toString(10),
+      });
       const txHash = await sendRawTransaction(rawTx);
-      await walletStore.updateTransaction(record.id, { status: tt('common.success'), txHash });
+      await updateTransaction(record.id, { status: tt('common.success'), txHash });
     } catch (err) {
       if (record) {
-        await walletStore.updateTransaction(record.id, {
+        await updateTransaction(record.id, {
           status: tt('common.failed'),
           error: String(err.message ?? err),
         });
@@ -192,13 +170,12 @@ export default function Transactions() {
       }
     } finally {
       setBusy(false);
-      setList(await walletStore.getTransactions());
     }
   }
 
   // 其他链：模拟确认（对齐参考项目 simulateTransactionConfirmation：3-10s，90% 成功）
   async function simulateTransfer() {
-    const record = await walletStore.addTransaction({
+    const record = await addTransaction({
       type: 'transfer',
       from,
       to: to.trim(),
@@ -208,15 +185,13 @@ export default function Transactions() {
       status: tt('common.processing'),
     });
     setSheetVisible(false);
-    setList(await walletStore.getTransactions());
     const delay = 3000 + Math.random() * 7000;
     setTimeout(async () => {
       if (Math.random() < 0.9) {
-        await walletStore.updateTransaction(record.id, { status: tt('common.success'), txHash: mockTxHash() });
+        await updateTransaction(record.id, { status: tt('common.success'), txHash: mockTxHash() });
       } else {
-        await walletStore.updateTransaction(record.id, { status: tt('common.failed'), error: tt('wallet.transactions.simulateRejected') });
+        await updateTransaction(record.id, { status: tt('common.failed'), error: tt('wallet.transactions.simulateRejected') });
       }
-      setList(await walletStore.getTransactions());
     }, delay);
   }
 
@@ -230,24 +205,23 @@ export default function Transactions() {
     );
   }
 
-  function renderRightActions(progress, dragX, item) {
-    const translate = dragX.interpolate({
-      inputRange: [-80, 0],
-      outputRange: [0, 80],
-      extrapolate: 'clamp',
-    });
+  // 滑动删除动作：ReanimatedSwipeable 的 progress 是 SharedValue（0=合上，1=全开），
+  // 用它驱动删除按钮从右往左滑入（v3 移除了旧 Swipeable 组件，换 ReanimatedSwipeable）
+  function RightActions({ progress, item }) {
+    const animStyle = useAnimatedStyle(() => ({
+      transform: [{ translateX: 70 * (1 - progress.value) }],
+    }));
     return (
-      <Animated.View style={[styles.deleteAction, { transform: [{ translateX: translate }] }]}>
+      <Reanimated.View style={[styles.deleteAction, animStyle]}>
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={async () => {
-            await walletStore.deleteTransaction(item.id);
-            setList(await walletStore.getTransactions());
+            await deleteTransaction(item.id);
           }}
         >
           <Text style={styles.deleteText}>{tt('common.delete')}</Text>
         </TouchableOpacity>
-      </Animated.View>
+      </Reanimated.View>
     );
   }
 
@@ -275,14 +249,17 @@ export default function Transactions() {
       ) : null}
 
       <FlatList
-        data={list}
+        data={transactions}
         keyExtractor={(item) => item.id ?? `${item.txHash}-${item.time}`}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.secondaryText} />
         }
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <Swipeable renderRightActions={(p, d) => renderRightActions(p, d, item)} overshootRight={false}>
+          <ReanimatedSwipeable
+            renderRightActions={(p, d) => <RightActions progress={p} item={item} />}
+            overshootRight={false}
+          >
             <View style={styles.card}>
               <View style={styles.rowTop}>
                 <Text style={styles.amount}>
@@ -318,7 +295,7 @@ export default function Transactions() {
                 </Text>
               </View>
             </View>
-          </Swipeable>
+          </ReanimatedSwipeable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>

@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { Polyline, Svg, Line } from 'react-native-svg';
 
 import { getCoin, getMarketChart } from '@/utils/coingecko';
-import { useTheme, formatPercent } from '@/utils/theme';
+import { useTheme, formatPercent } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
 /** 币种详情：走势图（带发光）+ 概览/更多数据双列网格 + 简介 */

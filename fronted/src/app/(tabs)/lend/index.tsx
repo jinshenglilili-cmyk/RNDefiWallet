@@ -9,9 +9,9 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { t as tt } from '@/i18n';
-import { useTheme } from '@/utils/theme';
-import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { getTokens, tokenBySymbol, aaveWrappedAddress, net, wrappedSymbol } from '@/utils/defi/tokens';
+import { useTheme } from '@/hooks/useTheme';
+import { useUserInfo } from '@/hooks/useUserInfo';
+import { getTokens, tokenBySymbol, aaveWrappedAddress, net, wrappedSymbol } from '@/hooks/useDefiNetwork';
 import * as aave from '@/utils/defi/aave';
 import { balanceOf } from '@/utils/defi/erc20';
 import { formatTokenAmount } from '@/utils/defi/format';
@@ -33,7 +33,7 @@ const LEND_SYMBOLS = () => getTokens().filter((t) => !t.wrapped).map((t) => t.sy
 export default function LendTab() {
   const t = useTheme();
   const router = useRouter();
-   const { session, hasAccount, address, bnbBalance, balances, network, refresh } = useBscWallet();
+   const { session, hasAccount, address, bnbBalance, balances, network, refresh } = useUserInfo();
   const styles = makeStyles(t);
 
   const headerSubtitle = network === 'sepolia'

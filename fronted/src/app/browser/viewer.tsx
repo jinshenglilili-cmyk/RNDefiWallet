@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,11 @@ import { WebView } from 'react-native-webview';
 
 import Wallet from '@wallet';
 import * as walletStore from '@/utils/walletStore';
+import { useWalletStore } from '@/hooks/useWalletStore';
 import INJECTED_PROVIDER from '@/utils/injectedProvider';
 import * as rpc from '@/utils/rpc';
 import { formatEther, hexToDecimal } from '@/utils/format';
-import { useTheme } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { t as tt } from '@/i18n';
 
 /**
@@ -36,22 +37,13 @@ export default function BrowserViewer() {
   const [progress, setProgress] = useState(1);
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(null); // {id, title, message, tx, method, run}
-  const [account, setAccount] = useState(null);
+  // 账号从 useWalletStore 取（全局共享），不再本地读存储
+  const meta = useWalletStore((s) => s.meta);
+  const account = meta?.accounts[meta.current] ?? null;
   const [connected, setConnected] = useState(false); // 本页已授权连接
   const [editingUrl, setEditingUrl] = useState(false);
   const [debugMsg, setDebugMsg] = useState(''); // 临时调试：注入脚本探针结果
   const styles = makeStyles(t);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const meta = await walletStore.getMeta();
-        setAccount(meta.accounts[meta.current] ?? null);
-      } catch {
-        setAccount(null);
-      }
-    })();
-  }, []);
 
   /** 把结果回写给页面的 Promise（错误走 sendError） */
   const respond = useCallback((id, result) => {
@@ -69,8 +61,9 @@ export default function BrowserViewer() {
 
   /** 取当前账号（未创建钱包时报错） */
   const getAccount = useCallback(async () => {
-    const meta = await walletStore.getMeta();
-    const address = meta.accounts[meta.current];
+    const address = useWalletStore.getState().meta?.accounts[
+      useWalletStore.getState().meta?.current ?? 0
+    ];
     if (!address) throw new Error(tt('browser.noWallet'));
     return address;
   }, []);
@@ -152,8 +145,10 @@ export default function BrowserViewer() {
             message,
             method,
             run: async () => {
-              const mnemonic = await walletStore.getMnemonic();
-              return await Wallet.signMessage('ethereum', mnemonic, message);
+              const addr = await getAccount();
+              const pk = await walletStore.getPrivateKey(addr);
+              if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
+              return await Wallet.signMessageWithPrivateKey(pk, message);
             },
           });
           return;
@@ -170,7 +165,8 @@ export default function BrowserViewer() {
             method,
             from,
             run: async () => {
-              const mnemonic = await walletStore.getMnemonic();
+              const pk = await walletStore.getPrivateKey(from);
+              if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
               const [nonce, gasPrice] = await Promise.all([
                 rpc.getNonce(from),
                 rpc.getGasPrice(),
@@ -178,7 +174,7 @@ export default function BrowserViewer() {
               const gasLimit = tx.gas
                 ? hexToDecimal(tx.gas)
                 : await rpc.estimateGas({ from, to: tx.to, value: tx.value ?? '0x0' });
-              const rawTx = await Wallet.signTransaction('ethereum', mnemonic, {
+              const rawTx = await Wallet.signTransactionWithPrivateKey('ethereum', pk, {
                 chainId: '1',
                 nonce,
                 gasPrice,

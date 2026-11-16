@@ -1,9 +1,9 @@
 // Aave V3：存款 / 取款 / 账户数据 / 储备资产信息
-// 网络：BSC 主网 / Sepolia 测试网（地址见 utils/defi/tokens.js 的 net()）
+// 网络：BSC 主网 / Sepolia 测试网（地址见 hooks/useDefiNetwork.js 的 net()）
 
 import { ethCall } from './bscRpc';
 import { encodeCall, decodeWords, wordToAddress } from './abi';
-import { net } from './tokens';
+import { net } from '@/hooks/useDefiNetwork';
 
 /**
  * Pool.getUserAccountData

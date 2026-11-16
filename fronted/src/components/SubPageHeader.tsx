@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useTheme } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 /**
  * 二级页面顶部导航：左侧 ✕ 返回（无文字）+ 居中标题

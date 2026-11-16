@@ -13,9 +13,10 @@ import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { t as tt } from '@/i18n';
 import * as walletStore from '@/utils/walletStore';
-import { useTheme } from '@/utils/theme';
-import { useBscWallet } from '@/utils/defi/useBscWallet';
-import { net, wrappedAddress, tokenBySymbol } from '@/utils/defi/tokens';
+import { useWalletStore } from '@/hooks/useWalletStore';
+import { useTheme } from '@/hooks/useTheme';
+import { useUserInfo } from '@/hooks/useUserInfo';
+import { net, wrappedAddress, tokenBySymbol } from '@/hooks/useDefiNetwork';
 import * as pancake from '@/utils/defi/pancake';
 import { balanceOf } from '@/utils/defi/erc20';
 import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
@@ -34,7 +35,7 @@ export default function LpDetail() {
   const token = tokenBySymbol(symbol);
   const nativeSymbol = net().nativeSymbol;
   const t = useTheme();
-  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useBscWallet();
+  const { session, meta, hasAccount, address, bnbBalance, balances, refresh } = useUserInfo();
   const styles = makeStyles(t);
 
   const [pool, setPool] = useState(null); // 单个池子数据（结构同 LP Tab）
@@ -117,7 +118,7 @@ export default function LpDetail() {
       const data = pancake.addLiquidityETHData(
         token.address, tokenAmt, tokenMin, bnbMin, address, pancake.defaultDeadline()
       );
-      const record = await recordDefiTx(walletStore, {
+      const record = await recordDefiTx({
         from: address,
         to: pool.pair,
         amount: `${tokenAmount} ${symbol} + ${formatTokenAmount(bnbNeeded)} ${nativeSymbol}`,
@@ -127,7 +128,7 @@ export default function LpDetail() {
         to: router, data, valueWei: bnbNeeded, from, sign, method: 'addLiquidityETH',
       });
       const ok = !receipt || receipt.status === '0x1';
-      await walletStore.updateTransaction(record.id, {
+      await useWalletStore.getState().updateTransaction(record.id, {
         status: ok ? tt('common.success') : tt('common.failed'),
         txHash,
         error: ok ? undefined : tt('defi.common.revert'),
@@ -173,7 +174,7 @@ export default function LpDetail() {
       const data = pancake.removeLiquidityETHData(
         token.address, liquidity, tokenMin, bnbMin, address, pancake.defaultDeadline()
       );
-      const record = await recordDefiTx(walletStore, {
+      const record = await recordDefiTx({
         from: address,
         to: pool.pair,
         amount: `${lpAmount} LP (${symbol}/${nativeSymbol})`,
@@ -183,7 +184,7 @@ export default function LpDetail() {
         to: router, data, valueWei: 0n, from, sign, method: 'removeLiquidityETH',
       });
       const ok = !receipt || receipt.status === '0x1';
-      await walletStore.updateTransaction(record.id, {
+      await useWalletStore.getState().updateTransaction(record.id, {
         status: ok ? tt('common.success') : tt('common.failed'),
         txHash,
         error: ok ? undefined : tt('defi.common.revert'),

@@ -119,6 +119,18 @@ public class WalletModule: Module {
       }
       return coinType.deriveAddress(privateKey: key)
     }
+
+    // 按账户序号派生以太坊私钥（BIP44 路径 index 位）。
+    // 仅在账号创建/迁移那一刻调用：派生出的私钥由 JS 层存 SecureStore，
+    // 助记词本身不再持久化（展示一次后即丢弃）。
+    AsyncFunction("derivePrivateKey") { (mnemonic: String, index: Int, passphrase: String?) -> String in
+      let wallet = try makeWallet(mnemonic, passphrase)
+      let path = String(format: CoinType.ethereum.derivationPath(), index)
+      guard let key = wallet.getKey(coin: .ethereum, derivationPath: path) else {
+        throw Exception(name: "WalletError", description: "派生私钥失败（index: \(index)）")
+      }
+      return key.data.hexString
+    }
   }
 
   // MARK: - 各链交易签名
