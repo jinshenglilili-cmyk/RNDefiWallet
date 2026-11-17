@@ -18,7 +18,7 @@ import { useUserInfo } from '@/hooks/useUserInfo';
 import { net, aaveWrappedAddress, wrappedSymbol, tokenBySymbol } from '@/hooks/useDefiNetwork';
 import * as aave from '@/utils/defi/aave';
 import { balanceOf, wbnbDepositData, wbnbWithdrawData } from '@/utils/defi/erc20';
-import { formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
+import { formatTokenAmount, parseTokenAmount } from '@/utils/format';
 import { assertSigningAccount, ensureApproval, signAndSendWithReceipt } from '@/utils/defi/txSender';
 import { DefiGuard, recordDefiTx } from '@/components/defi/ui';
 

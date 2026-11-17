@@ -8,7 +8,7 @@ import { useUserInfo } from '@/hooks/useUserInfo';
 import { getTokens, pathAddress, net, wrappedSymbol } from '@/hooks/useDefiNetwork';
 import * as pancake from '@/utils/defi/pancake';
 import { getAmountsOut } from '@/utils/defi/pancake';
-import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
+import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/format';
 import {
   assertSigningAccount,
   ensureApproval,

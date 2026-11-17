@@ -8,7 +8,7 @@ import { t as tt } from '@/i18n';
 import { useDefiNetwork } from '@/hooks/useDefiNetwork';
 import { useWalletStore } from '@/hooks/useWalletStore';
 import { getTokens, net } from '@/hooks/useDefiNetwork';
-import { formatTokenAmount } from '@/utils/defi/format';
+import { formatTokenAmount } from '@/utils/format';
 
 /** 通用守卫：未登录 / 没有钱包账号时渲染引导页（有账号渲染 children） */
 export function DefiGuard({ session, hasAccount, children }) {

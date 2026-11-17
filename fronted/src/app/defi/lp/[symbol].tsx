@@ -18,7 +18,7 @@ import { useUserInfo } from '@/hooks/useUserInfo';
 import { net, wrappedAddress, tokenBySymbol } from '@/hooks/useDefiNetwork';
 import * as pancake from '@/utils/defi/pancake';
 import { balanceOf } from '@/utils/defi/erc20';
-import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/defi/format';
+import { applySlippage, formatTokenAmount, parseTokenAmount } from '@/utils/format';
 import { assertSigningAccount, ensureApproval, signAndSendWithReceipt } from '@/utils/defi/txSender';
 import { DefiGuard, recordDefiTx } from '@/components/defi/ui';
 

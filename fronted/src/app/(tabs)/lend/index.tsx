@@ -14,7 +14,7 @@ import { useUserInfo } from '@/hooks/useUserInfo';
 import { getTokens, tokenBySymbol, aaveWrappedAddress, net, wrappedSymbol } from '@/hooks/useDefiNetwork';
 import * as aave from '@/utils/defi/aave';
 import { balanceOf } from '@/utils/defi/erc20';
-import { formatTokenAmount } from '@/utils/defi/format';
+import { formatTokenAmount } from '@/utils/format';
 import { DefiGuard, DefiHeader } from '@/components/defi/ui';
 
 /**

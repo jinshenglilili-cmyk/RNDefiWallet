@@ -1,11 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  FlatList,
-  RefreshControl,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { t as tt } from '@/i18n';
@@ -14,11 +8,14 @@ import { useUserInfo } from '@/hooks/useUserInfo';
 import { getTokens, tokenBySymbol, wrappedAddress, net } from '@/hooks/useDefiNetwork';
 import * as pancake from '@/utils/defi/pancake';
 import { balanceOf } from '@/utils/defi/erc20';
-import { formatTokenAmount } from '@/utils/defi/format';
+import { formatTokenAmount } from '@/utils/format';
 import { DefiGuard, DefiHeader } from '@/components/defi/ui';
 
 /** 候选交易对的代币侧（按当前网络代币清单推导，排除原生币与 wrapped 侧；运行时经 Factory.getPair 确认存在才展示） */
-const POOL_SYMBOLS = () => getTokens().filter((t) => !t.native && !t.wrapped).map((t) => t.symbol);
+const POOL_SYMBOLS = () =>
+  getTokens()
+    .filter((t) => !t.native && !t.wrapped)
+    .map((t) => t.symbol);
 
 /**
  * LP Tab：PancakeSwap V2 流动性池子列表
@@ -31,9 +28,10 @@ export default function LpTab() {
   const { session, hasAccount, address, network, refresh } = useUserInfo();
   const styles = makeStyles(t);
 
-  const headerSubtitle = network === 'sepolia'
-    ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
-    : tt('defi.lp.headerSubtitle', { dex: net().dexName, net: tt(`defi.network.${net().id}`) });
+  const headerSubtitle =
+    network === 'sepolia'
+      ? tt('defi.common.testnetSubtitle', { dex: net().dexName, net: tt('defi.network.sepolia') })
+      : tt('defi.lp.headerSubtitle', { dex: net().dexName, net: tt(`defi.network.${net().id}`) });
 
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -52,9 +50,9 @@ export default function LpTab() {
           const pair = await pancake.getPair(wrappedAddress(), token.address);
           if (!pair || BigInt(pair) === 0n) return null;
           const [[t0, t1], [res0, res1], totalSupply] = await Promise.all([
-            pancake.pairTokens(pair),
-            pancake.getReserves(pair),
-            pancake.pairTotalSupply(pair),
+            pancake.pairTokens(pair), // 拿到对两种币的 顺序
+            pancake.getReserves(pair), // 拿到对应顺序的 代币余额
+            pancake.pairTotalSupply(pair), // 总流动性，  是一个流动性份额总值
           ]);
           // Pair 的 token0/token1 按地址排序，储备要对齐到「代币 / WBNB」两侧
           const tokenIs0 = t0.toLowerCase() === token.address.toLowerCase();
@@ -73,13 +71,9 @@ export default function LpTab() {
             myLp,
             share: totalSupply > 0n ? (myLp * 10000n) / totalSupply : 0n, // 万分比
           };
-        })
+        }),
       );
-      setPools(
-        results
-          .filter((r) => r.status === 'fulfilled' && r.value)
-          .map((r) => r.value)
-      );
+      setPools(results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value));
     } finally {
       setLoading(false);
     }
@@ -88,7 +82,7 @@ export default function LpTab() {
   useFocusEffect(
     useCallback(() => {
       loadPools();
-    }, [loadPools])
+    }, [loadPools]),
   );
 
   /** 手动下拉刷新：只驱动 RefreshControl 的转圈，不影响页面其他状态 */
@@ -102,9 +96,8 @@ export default function LpTab() {
     }
   }
 
-  const shownPools = pools.filter((p) => p.myLp > 0n).length > 0
-    ? pools.filter((p) => p.myLp > 0n)
-    : pools;
+  const shownPools =
+    pools.filter((p) => p.myLp > 0n).length > 0 ? pools.filter((p) => p.myLp > 0n) : pools;
 
   return (
     <DefiGuard session={session} hasAccount={hasAccount}>
@@ -115,13 +108,14 @@ export default function LpTab() {
           // 与借贷/Swap 页一致：内容区 16pt 留白（标题与卡片左边对齐、顶部同样下沉）
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.secondaryText} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={t.secondaryText}
+            />
           }
           ListHeaderComponent={
-            <DefiHeader
-              title={tt('defi.lp.headerTitle')}
-              subtitle={headerSubtitle}
-            />
+            <DefiHeader title={tt('defi.lp.headerTitle')} subtitle={headerSubtitle} />
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
@@ -138,7 +132,9 @@ export default function LpTab() {
               }
             >
               <View style={styles.poolTopRow}>
-                <Text style={styles.poolName}>🥞 {item.symbol} / {net().nativeSymbol}</Text>
+                <Text style={styles.poolName}>
+                  🥞 {item.symbol} / {net().nativeSymbol}
+                </Text>
                 {item.myLp > 0n ? (
                   <Text style={styles.myShareTag}>
                     {tt('defi.lp.myShare', { share: Number(item.share) / 100 })}
@@ -146,14 +142,21 @@ export default function LpTab() {
                 ) : null}
               </View>
               <Text style={styles.poolReserve}>
-                {tt('defi.lp.poolReserve', { bnb: formatTokenAmount(item.reserveBnb), token: formatTokenAmount(item.reserveToken, item.decimals), symbol: item.symbol, native: net().nativeSymbol })}
+                {tt('defi.lp.poolReserve', {
+                  bnb: formatTokenAmount(item.reserveBnb),
+                  token: formatTokenAmount(item.reserveToken, item.decimals),
+                  symbol: item.symbol,
+                  native: net().nativeSymbol,
+                })}
               </Text>
               {item.myLp > 0n ? (
                 <Text style={styles.poolMine}>
                   {tt('defi.lp.myLp', { amount: formatTokenAmount(item.myLp, 18, 8) })}
                 </Text>
               ) : (
-                <Text style={styles.poolHint}>{tt('defi.lp.poolHint', { symbol: item.symbol, native: net().nativeSymbol })}</Text>
+                <Text style={styles.poolHint}>
+                  {tt('defi.lp.poolHint', { symbol: item.symbol, native: net().nativeSymbol })}
+                </Text>
               )}
             </TouchableOpacity>
           )}

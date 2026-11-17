@@ -3998,3 +3998,5 @@
 {"_e":"metro:bundling:failed","_t":1794830325722,"id":"3i","message":"Unable to resolve \"viem\" from \"src/utils/defi/abi.js\"\n  19 |   sliceHex,\n  20 |   size,\n> 21 | } from 'viem';\n     |         ^\n  22 | import { t as tt } from '@/i18n';\n  23 |\n  24 | /**","importStack":"Import stack:\n\n src/utils/defi/abi.js\n | import \"viem\"\n\n src/utils/defi/erc20.js\n | import \"./abi\"\n\n src/utils/defi/useBscWallet.js\n | import \"./erc20\"\n\n src/app/(tabs)/swap/index.tsx\n | import \"../../../utils/defi/useBscWallet\"\n\n src/app (require.context)\n","filename":null,"targetModuleName":"viem","originModulePath":"src/utils/defi/abi.js"}
 {"_e":"metro:bundling:started","_t":1794830329344,"id":"3v","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1794830331221,"id":"3v","total":1,"ms":1876.616958}
+{"_e":"metro:bundling:started","_t":1794906501707,"id":"3x","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1794906502193,"id":"3x","total":1,"ms":483.78675}
