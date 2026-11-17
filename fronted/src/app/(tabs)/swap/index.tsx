@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { t as tt } from '@/i18n';
-import * as walletStore from '@/utils/walletStore';
 import { useWalletStore } from '@/hooks/useWalletStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useUserInfo } from '@/hooks/useUserInfo';
@@ -136,7 +135,6 @@ export default function SwapTab() {
       if (!(slip >= 0.01 && slip <= 50)) {
         throw new Error(tt('defi.swap.slippageRange'));
       }
-      const sign = await walletStore.getSigningCredential(address);
 
       let target, data, valueWei, approveToken, routerLabel, method;
       if (provider === 'pancake') {
@@ -189,11 +187,18 @@ export default function SwapTab() {
                 // 需要授权时先 approve（Pancake 给 Router / 1inch 给其路由）
                 if (approveToken) {
                   await ensureApproval({
+                    // tokenAddress：给哪枚代币做授权（ERC20 approve 的调用方）。
+                    //   示例：BSC USDT = 0x55d3…7955；额度记录在这枚代币合约里
                     tokenAddress: approveToken,
+                    // owner：谁的代币额度——当前账号地址，allowance 查的是
+                    //   token 合约里 mapping(owner => spender => amount) 这一格
                     owner: address,
+                    // spender：允许谁动这笔额度——买币走 V2 时是 DEX Router
+                    //   （示例：PancakeSwap V2 Router 0x10ED…24E5），走 1inch 时是它的聚合路由
                     spender: target,
+                    // amountWei：授权数量（最小单位，不是“个”）。
+                    //   示例：10 USDT（6 位小数）= '10000000'；通常按本次卖出量授权
                     amountWei: amountInWei,
-                    sign,
                   });
                 }
                 const record = await recordDefiTx({
@@ -203,11 +208,21 @@ export default function SwapTab() {
                   status: tt('common.processing'),
                 });
                 const { txHash, receipt } = await signAndSendWithReceipt({
+                  // to：这笔交易要调用的合约——V2 买币/卖币都是 Router，
+                  //   示例：PancakeSwap V2 Router 0x10ED…24E5
                   to: target,
+                  // data：calldata（ABI 编码）——告诉 Router 调哪个方法、参数是什么。
+                  //   示例：卖 0.1 BNB 买 USDT = swapExactETHForTokens(最小买到量,
+                  //   收款地址, WBNB, USDT) 编码成一串 0x… 字节
                   data,
+                  // valueWei：随交易发送的原生币数量（wei）。
+                  //   示例：卖 0.1 BNB 买币 = '100000000000000000'；卖代币买币 = 0n
+                  //   （代币由 Router 通过 transferFrom 从授权额度里转走）
                   valueWei,
+                  // from：发起地址（当前账号）。签名在原生层完成：按这个地址
+                  //   从 Keychain/Keystore 取私钥，私钥不进 JS
                   from,
-                  sign,
+                  // method：仅用于签名确认弹框展示方法名，不影响交易内容
                   method,
                 });
                 const ok = !receipt || receipt.status === '0x1';

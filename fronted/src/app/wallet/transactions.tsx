@@ -16,11 +16,11 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import Wallet from '@wallet';
-import * as walletStore from '@/utils/walletStore';
 import { useWalletStore } from '@/hooks/useWalletStore';
 // 真实转账走当前 DeFi 网络的原生币（BSC 链 → BNB，Sepolia 测试网 → ETH），
 // RPC 与 chainId 都从 bscRpc 现场读取，切换网络后无需重启
 import { getNonce, getGasPrice, estimateGas, sendRawTransaction, nativeSymbol, chainId } from '@/utils/defi/bscRpc';
+import { requireBiometric } from '@/utils/biometric';
 import { net } from '@/hooks/useDefiNetwork';
 import { useDefiNetwork } from '@/hooks/useDefiNetwork';
 import { parseEther, formatEther } from '@/utils/format';
@@ -125,13 +125,16 @@ export default function Transactions() {
     }
   }
 
-  // 当前 DeFi 网络原生币：真实链上转账（用当前账号私钥签名 -> 广播）
+  // 当前 DeFi 网络原生币：真实链上转账（生物识别 -> 原生按地址取私钥签名 -> 广播）
   async function sendRealEth(valueWei) {
+    // 签名即验身：生物识别未通过直接中止（不发交易）
+    if (!(await requireBiometric())) return;
     let record = null;
     try {
       setBusy(true);
-      const sign = await walletStore.getSigningCredential(from);
-      if (!sign.privateKey) throw new Error(tt('wallet.sign.noPrivateKey'));
+      // 无账号时 sheet 开不出来（入口已禁用），from 必有值；
+      // 签名时原生层按 from 地址取保管中的私钥，私钥不进 JS
+      if (!from) throw new Error(tt('wallet.sign.noPrivateKey'));
       record = await addTransaction({
         type: 'transfer',
         from,
@@ -149,12 +152,22 @@ export default function Transactions() {
         to: to.trim(),
         value: '0x' + valueWei.toString(16),
       });
-      const rawTx = await Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, {
+      // 只传地址引用：私钥由原生层从保管中取出完成签名，不进 JS
+      const rawTx = await Wallet.signTransactionWithStoredKey('ethereum', from, {
+        // chainId：目标网络 ID——签名时写进交易，防止交易被重放到别的链。
+        //   示例：BSC=56、Ethereum=1、Sepolia=11155111（取当前 DeFi 网络）
         chainId: chainId(),
+        // nonce：该账号已发的交易数，链上按 nonce 排队执行。示例：第一次转账 = '0'
         nonce,
+        // gasPrice：每单位 gas 出价（wei）。示例：'3600000000' = 3 gwei，
+        //   21000 gas 的转账手续费 = 21000 × 3 gwei = 0.000063 ETH/BNB
         gasPrice,
+        // gasLimit：最多愿意消耗的 gas 量，未用部分退回。普通转账 21000 够用，
+        //   合约调用要靠 estimateGas 预估
         gasLimit,
+        // to：收款地址（普通转账是钱包地址；调合约时是合约地址）
         to: to.trim(),
+        // value：转账金额（wei，十进制字符串）。示例：1 ETH = '1000000000000000000'
         value: valueWei.toString(10),
       });
       const txHash = await sendRawTransaction(rawTx);

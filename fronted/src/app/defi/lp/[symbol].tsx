@@ -12,7 +12,6 @@ import {
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { t as tt } from '@/i18n';
-import * as walletStore from '@/utils/walletStore';
 import { useWalletStore } from '@/hooks/useWalletStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useUserInfo } from '@/hooks/useUserInfo';
@@ -103,15 +102,20 @@ export default function LpDetail() {
       }
       const tokenMin = applySlippage(tokenAmt, 0.5);
       const bnbMin = applySlippage(bnbNeeded, 0.5);
-      const sign = await walletStore.getSigningCredential(address);
 
       setAddText(tt('defi.lp.busyApprovingRouter'));
       await ensureApproval({
+        // tokenAddress：给哪枚代币做授权——这里授权的是你存进池子的那枚 ERC20
+        //   （原生币不需要授权：它随交易本身发送，没有“额度”概念）
         tokenAddress: token.address,
+        // owner：谁的额度——当前账号地址
         owner: address,
+        // spender：允许谁转走你的代币——DEX Router（添加流动性时 Router 通过
+        //   transferFrom 把你的代币拉进池子；示例：PancakeSwap V2 Router 0x10ED…24E5）
         spender: router,
+        // amountWei：授权数量（最小单位）= 本次要投入的代币量。
+        //   示例：投 10 USDT（6 位小数）= '10000000'
         amountWei: tokenAmt,
-        sign,
       });
 
       setAddText(tt('defi.lp.busySigning'));
@@ -125,7 +129,18 @@ export default function LpDetail() {
         status: tt('common.processing'),
       });
       const { txHash, receipt } = await signAndSendWithReceipt({
-        to: router, data, valueWei: bnbNeeded, from, sign, method: 'addLiquidityETH',
+        // to：DEX Router 合约
+        to: router,
+        // data：addLiquidityETH(代币, 代币量, 最少代币, 最少原生币, 收款地址, 期限) 编码——
+        //   按池子当前储备比例收你的两种资产， mint LP 凭证给你
+        data,
+        // valueWei：随交易发送的原生币（wei）= 按储备比例配好的那一份。
+        //   示例：池子 10 ETH / 20000 USDT，投 100 USDT 需同时发 0.05 ETH
+        valueWei: bnbNeeded,
+        // from：发起地址（当前账号），原生层按它取私钥签名
+        from,
+        // method：签名确认弹框展示用
+        method: 'addLiquidityETH',
       });
       const ok = !receipt || receipt.status === '0x1';
       await useWalletStore.getState().updateTransaction(record.id, {
@@ -159,15 +174,18 @@ export default function LpDetail() {
       const bnbOut = (liquidity * pool.reserveBnb) / pool.totalSupply;
       const tokenMin = applySlippage(tokenOut, 0.5);
       const bnbMin = applySlippage(bnbOut, 0.5);
-      const sign = await walletStore.getSigningCredential(address);
 
       setRemoveText(tt('defi.lp.busyApprovingLp'));
       await ensureApproval({
+        // tokenAddress：这里授权的是 LP 凭证本身（pair 合约也是一种 ERC20）——
+        //   Router 要先把你的 LP 凭证 transferFrom 走，才能烧掉它换回两种资产
         tokenAddress: pool.pair,
+        // owner：谁的 LP 凭证额度——当前账号地址
         owner: address,
+        // spender：DEX Router（烧 LP 凭证前先从你这转走）
         spender: router,
+        // amountWei：授权的 LP 份数（最小单位）= 本次要撤出的份数
         amountWei: liquidity,
-        sign,
       });
 
       setRemoveText(tt('defi.lp.busySigning'));
@@ -181,7 +199,17 @@ export default function LpDetail() {
         status: tt('common.processing'),
       });
       const { txHash, receipt } = await signAndSendWithReceipt({
-        to: router, data, valueWei: 0n, from, sign, method: 'removeLiquidityETH',
+        // to：DEX Router 合约
+        to: router,
+        // data：removeLiquidityETH(LP凭证, 份数, 最少代币, 最少原生币, 收款地址, 期限) 编码——
+        //   烧掉 LP 凭证，按份额比例把两种资产退回给你
+        data,
+        // valueWei：移除流动性不发原生币（是 Router 把原生币退给你），固定 0n
+        valueWei: 0n,
+        // from：发起地址（当前账号），原生层按它取私钥签名
+        from,
+        // method：签名确认弹框展示用
+        method: 'removeLiquidityETH',
       });
       const ok = !receipt || receipt.status === '0x1';
       await useWalletStore.getState().updateTransaction(record.id, {

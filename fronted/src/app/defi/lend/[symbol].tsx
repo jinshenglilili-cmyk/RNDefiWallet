@@ -12,7 +12,6 @@ import {
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { t as tt } from '@/i18n';
-import * as walletStore from '@/utils/walletStore';
 import { useWalletStore } from '@/hooks/useWalletStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useUserInfo } from '@/hooks/useUserInfo';
@@ -93,7 +92,6 @@ export default function LendDetail() {
           ? tt('defi.lend.insufficientBalanceNative', { symbol, native: net().nativeSymbol })
           : tt('defi.lend.insufficientBalance', { symbol }));
       }
-      const sign = await walletStore.getSigningCredential(address);
 
       // 原生币特殊流程：wrap → approve → supply；其他代币：approve → supply
       const nativeParams = { native: net().nativeSymbol, wrapped: wrappedSymbol() };
@@ -115,16 +113,35 @@ export default function LendDetail() {
         let txHash;
         if (step.approve) {
           const res = await ensureApproval({
+            // tokenAddress：给哪枚存入资产做授权，approve 写进它的合约。
+            //   示例：存 BSC USDT（0x55d3…7955）时，授权 Aave V3 Pool 动你的 USDT 额度
             tokenAddress: step.approve,
+            // owner：谁的额度——当前账号地址
             owner: address,
+            // spender：允许谁转走你的代币——这里固定是 Aave V3 Pool 合约
+            //   （存入 = 你把代币 transferFrom 给 Pool，Pool 记为抵押品）
             spender: pool,
+            // amountWei：授权数量（最小单位）——本次存入量。
+            //   示例：存 100 USDT（6 位小数）= '100000000'
             amountWei: step.amountWei,
-            sign,
           });
           txHash = res.txHash ?? '';
         } else {
           const res = await signAndSendWithReceipt({
-            to: step.to, data: step.data, valueWei: step.valueWei ?? 0n, from, sign, method: step.method,
+            // to：目标合约。wrap 步骤 = WETH 合约（deposit 铸 1:1 包装币）；
+            //   supply 步骤 = Aave V3 Pool
+            to: step.to,
+            // data：calldata。示例：
+            //   wrap  = deposit() 编码（随交易发原生币，铸等量 WETH）
+            //   supply = supply(WETH 地址, 数量, 自己地址, 推荐码0) 编码
+            data: step.data,
+            // valueWei：随交易发的原生币（wei）。wrap = 包装数量；
+            //   supply 代币 = 0n（代币走 transferFrom，不发原生币）
+            valueWei: step.valueWei ?? 0n,
+            // from：发起地址（当前账号），原生层按它取私钥签名
+            from,
+            // method：签名确认弹框展示用
+            method: step.method,
           });
           txHash = res.txHash;
           if (res.receipt && res.receipt.status !== '0x1') ok = false;
@@ -160,7 +177,6 @@ export default function LendDetail() {
       if (amt <= 0n) throw new Error(tt('defi.lend.needWithdrawAmount'));
       if (amt > deposit) throw new Error(tt('defi.lend.exceedsDeposit'));
       const isNative = token.native;
-      const sign = await walletStore.getSigningCredential(address);
 
       const record = await recordDefiTx({
         from: address,
@@ -170,11 +186,14 @@ export default function LendDetail() {
       });
       setBusyText(isNative ? tt('defi.lend.stepWithdrawNative', { wrapped: wrappedSymbol() }) : tt('defi.lend.stepWithdraw'));
       const res = await signAndSendWithReceipt({
+        // to：Aave V3 Pool 合约
         to: pool,
+        // data：withdraw(WETH 地址, 取回数量(最小单位), 自己地址) 编码——
+        //   Pool 销毁对应的 aToken，把底层资产转回给你
         data: aave.withdrawData(asset, amt, address),
+        // valueWei：取回不发原生币（Pool 把资产转给你），固定 0n
         valueWei: 0n,
         from,
-        sign,
         method: 'withdraw (Aave Pool)',
       });
       let ok = !res.receipt || res.receipt.status === '0x1';
@@ -184,11 +203,13 @@ export default function LendDetail() {
         try {
           setBusyText(tt('defi.lend.stepUnwrap', { native: net().nativeSymbol, wrapped: wrappedSymbol() }));
           const unwrap = await signAndSendWithReceipt({
+            // to：WETH 合约
             to: wrapped,
+            // data：withdraw(解包数量) 编码——销毁等量 WETH，把原生币退回
             data: wbnbWithdrawData(amt),
+            // valueWei：解包不发原生币（是合约把原生币退给你），固定 0n
             valueWei: 0n,
             from,
-            sign,
             method: `WETH withdraw (unwrap ${net().nativeSymbol})`,
           });
           if (unwrap.txHash) lastHash = unwrap.txHash;

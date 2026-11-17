@@ -48,6 +48,7 @@
     "react-native-worklets": "0.10.1",
     "react-native-worklets-core": "^1.6.3",
     "urlcat": "^3.1.0",
+    "viem": "^2.57.20",
     "zustand": "^5.0.16"
   },
   "devDependencies": {

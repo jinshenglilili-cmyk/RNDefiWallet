@@ -7,9 +7,12 @@
 - 以太坊私钥派生（`derivePrivateKey`，BIP44 按序号派生）
 - 消息签名（ETH EIP-191、TRON、BTC）
 - 交易签名（ETH Legacy 转账、TRON TRX 转账、BTC UTXO 转账）
+- 私钥保管 + 按地址签名：`savePrivateKey` 存入后（iOS Keychain /
+  Android Keystore 加密，按地址存放），`signTransactionWithStoredKey` /
+  `signMessageWithStoredKey` 在原生层取私钥完成签名，私钥不跨桥回到 JS 上下文
 
-模块本身**不保存任何私钥状态**，所有方法无状态；助记词由调用方通过
-`expo-secure-store` 等方式自行安全保管。
+基础签名方法（助记词/私钥 hex 由调用方传入）与保管能力并存：保管通道面向
+应用层，应用里所有账号签名都只传地址引用。
 
 ## 使用
 

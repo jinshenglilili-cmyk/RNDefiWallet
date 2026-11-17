@@ -11,7 +11,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 
 import Wallet from '@wallet';
-import * as walletStore from '@/utils/walletStore';
+import { requireBiometric } from '@/utils/biometric';
 import { useWalletStore } from '@/hooks/useWalletStore';
 import INJECTED_PROVIDER from '@/utils/injectedProvider';
 import * as rpc from '@/utils/rpc';
@@ -145,10 +145,13 @@ export default function BrowserViewer() {
             message,
             method,
             run: async () => {
+              // 签名即验身：审批确认后生物识别，未通过不签名
+              if (!(await requireBiometric())) {
+                throw new Error(tt('defi.common.userCancel'));
+              }
               const addr = await getAccount();
-              const pk = await walletStore.getPrivateKey(addr);
-              if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
-              return await Wallet.signMessageWithPrivateKey(pk, message);
+              // 只传地址引用：私钥由原生层从保管中取出完成签名，不进 JS
+              return await Wallet.signMessageWithStoredKey(addr, message);
             },
           });
           return;
@@ -165,8 +168,10 @@ export default function BrowserViewer() {
             method,
             from,
             run: async () => {
-              const pk = await walletStore.getPrivateKey(from);
-              if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
+              // 签名即验身：审批确认后生物识别，未通过不签名
+              if (!(await requireBiometric())) {
+                throw new Error(tt('defi.common.userCancel'));
+              }
               const [nonce, gasPrice] = await Promise.all([
                 rpc.getNonce(from),
                 rpc.getGasPrice(),
@@ -174,13 +179,21 @@ export default function BrowserViewer() {
               const gasLimit = tx.gas
                 ? hexToDecimal(tx.gas)
                 : await rpc.estimateGas({ from, to: tx.to, value: tx.value ?? '0x0' });
-              const rawTx = await Wallet.signTransactionWithPrivateKey('ethereum', pk, {
+              // 只传地址引用：私钥由原生层从保管中取出完成签名，不进 JS
+              const rawTx = await Wallet.signTransactionWithStoredKey('ethereum', from, {
+                // chainId：目标网络 ID（防重放）。浏览器当前固定以太坊主网 = '1'
                 chainId: '1',
+                // nonce：账号已发交易数，链上按它排队。示例：首次 = '0'
                 nonce,
+                // gasPrice：每单位 gas 出价（wei），示例 '3600000000' = 3 gwei
                 gasPrice,
+                // gasLimit：gas 上限，未用退回；DApp 若给了 gas 就直接用，否则预估
                 gasLimit,
+                // to：DApp 指定的目标合约/收款地址
                 to: tx.to,
+                // value：随交易发送的原生币（wei，十进制字符串），不转账时 '0'
                 value: valueWei.toString(10),
+                // data：DApp 构造好的 calldata（合约方法 + 参数的 ABI 编码）
                 data: tx.data,
               });
               return await rpc.sendRawTransaction(rawTx);

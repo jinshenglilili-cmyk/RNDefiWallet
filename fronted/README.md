@@ -19,7 +19,7 @@
 - **钱包**：
   - 创建 / 导入助记词钱包：助记词仅在创建时展示一次，不落盘；本地只保存派生出的账号私钥
   - 新增账号两种方式：导入私钥 / 助记词创建账号（随机生成或输入已有助记词，同样只存私钥）
-  - 收发转账（转账记录本地保存，含 DeFi 交易记录）、信息签名（签名一律使用账号私钥）
+  - 收发转账（转账记录本地保存，含 DeFi 交易记录）、信息签名（原生按地址取私钥签名，私钥不进 JS）
   - WalletConnect 连接外部 DApp（连接钱包）
 - **浏览器**：内置 DApp 浏览器（WebView + 注入 Provider），可连接 DApp
 - **设置**：语言切换（跟随系统 / 简体中文 / English）、DeFi 网络切换、主题、退出登录
@@ -45,8 +45,8 @@ Swap / LP / 借贷页面与签名广播（chainId、原生币符号、手续费�
 | 框架        | Expo SDK 57 / React Native 0.86 / React 19           |
 | 路由        | expo-router（文件系统路由）                          |
 | 状态管理    | zustand                                              |
-| 钱包核心    | `modules/wallet`（原生模块，Trust Wallet Core：助记词/私钥/EVM 签名） |
-| 敏感数据    | expo-secure-store（iOS Keychain / Android Keystore） |
+| 钱包核心    | `modules/wallet`（原生模块，Trust Wallet Core：助记词/私钥/派生/签名） |
+| 敏感数据    | 私钥由 `modules/wallet` 原生保管（iOS Keychain / Android Keystore 加密，签名只传地址引用）；登录 token 走 expo-secure-store |
 | 本地存储    | @react-native-async-storage/async-storage            |
 | DeFi        | PancakeSwap V2 / Uniswap V2 / Aave V3 / 1inch（eth_call 直连，无 SDK） |
 | DApp 连接   | WalletConnect Sign Client v2                         |
@@ -166,8 +166,8 @@ flowchart TB
     end
 
     subgraph NATIVE["原生 / 系统能力"]
-        WM["modules/wallet<br/>原生钱包模块：助记词生成/校验、<br/>BIP44 派生、私钥导入、EVM 交易签名"]
-        SS["expo-secure-store<br/>Keychain / Keystore"]
+        WM["modules/wallet<br/>原生钱包模块：助记词生成/校验、BIP44 派生、<br/>私钥保管（Keychain/Keystore）+ 按地址签名（私钥不进 JS）"]
+        SS["expo-secure-store<br/>登录 token / 旧私钥迁移"]
         AS["AsyncStorage"]
         WEBVIEW["react-native-webview<br/>DApp 页面"]
     end
@@ -200,7 +200,6 @@ flowchart TB
 
     WS --> SS
     WS --> AS
-    WM --> SS
     TX --> WM
     IP --> WEBVIEW
 
@@ -248,8 +247,8 @@ flowchart LR
     SW --> NS1
     SWN --> NSN
 
-    subgraph KEYCHAIN["SecureStore（Keychain，敏感数据）"]
-        SS1["wallet.u1.wallet.pk.&lt;地址&gt;<br/>（各账号私钥；助记词不落盘）"]
+    subgraph KEYCHAIN["原生模块保管（iOS Keychain / Android Keystore 加密，JS 不接触）"]
+        SS1["WalletModule<br/>pk.&lt;地址&gt;（按地址存；签名在原生层取私钥，<br/>旧 SecureStore 私钥/助记词由迁移一次性搬入后删除）"]
     end
 
     subgraph MANIFEST["AsyncStorage（非敏感数据）"]
@@ -283,12 +282,12 @@ sequenceDiagram
 
 - **状态管理（zustand）**：[src/hooks/useAuthStore.js](src/hooks/useAuthStore.js) 管登录态与用户信息；[src/hooks/useWalletStore.js](src/hooks/useWalletStore.js) 管钱包元数据与余额；[src/hooks/useDefiNetwork.js](src/hooks/useDefiNetwork.js) 管 DeFi 网络（三网络持久化）。
 - **钱包存储（按登录账号隔离）**：[src/utils/walletStore.js](src/utils/walletStore.js)
-  - 一个登录 uid 对应一份用户信息对象（单键 `wallet.u<uid>.wallet.data` = `{ meta, transactions }`）；各账号私钥存 SecureStore（Keychain/Keystore），不进对象；助记词只在创建/导入账号那一刻用于派生私钥，展示一次后不落盘
+  - 一个登录 uid 对应一份用户信息对象（单键 `wallet.u<uid>.wallet.data` = `{ meta, transactions }`）；各账号私钥由原生模块保管（Keychain/Keystore 加密，按地址），**签名只传地址引用给原生（`signTransactionWithStoredKey` / `signMessageWithStoredKey`），私钥不进 JS 上下文**；助记词只在创建/导入账号那一刻用于派生私钥，展示一次后不落盘
   - [src/hooks/useWalletStore.js](src/hooks/useWalletStore.js) 持有这份对象的内存副本作为跨页面唯一数据源：所有增删改走 hook action（先更新内存 → 订阅组件同步刷新 → 整体写回存储）
   - 所有键按登录用户加命名空间前缀 `wallet.u<uid>.`，未登录落在隔离的 `wallet.none.` 空命名空间
   - 退出登录只是切换前缀，数据不搬家；重新登录原样恢复；旧版数据（归档键/分键/明文键）由 `migrateLegacyInto` 一次性收敛为单对象格式
 - **DeFi 网络抽象**：[src/hooks/useDefiNetwork.js](src/hooks/useDefiNetwork.js) 集中网络选择（zustand）与三份网络配置（合约地址 / 代币清单 / RPC），其余代码全部通过 `net()` 调用时读取——切换网络不散落任何 if/else
-- **签名通道**：[src/utils/defi/txSender.js](src/utils/defi/txSender.js) 复用 `modules/wallet` 原生签名（Trust Wallet Core），签名前弹确认（方法 / 金额 / gas），带固有 gas 下限与回执等待
+- **签名通道**：[src/utils/defi/txSender.js](src/utils/defi/txSender.js) 复用 `modules/wallet` 原生签名（Trust Wallet Core），签名前弹确认（方法 / 金额 / gas），带固有 gas 下限与回执等待；签名只传地址引用，私钥全程在原生层
 - **HTTP 封装**：[src/utils/request.js](src/utils/request.js)，接口统一返回 `{status, message, data}`；401 自动跳登录
 - **国际化**：[src/i18n/](src/i18n/index.js)，i18n-js，zh / en 两种语言（跟随系统可切换），链名 / 原生币符号等动态参数经插值传入
 

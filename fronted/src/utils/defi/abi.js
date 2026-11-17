@@ -1,116 +1,76 @@
-// ABI 编码/解码工具（手写，覆盖 DeFi 用到的类型：address/uint256/bool/address[]）
+// ABI 编码/解码工具（基于 viem）
 //
-// 依赖同目录 keccak256.js 计算函数选择器。
-// 全部用 BigInt 处理数值，避免浮点精度问题。
+// 覆盖 DeFi 用到的类型：address/uint256/bool/address[]/string。
+// encodeCall 走 viem 的完整 ABI 编码器（支持 tuple、bytes 等全部类型），
+// 解码走 decodeAbiParameters；decodeWords 是裸 word 拆分（getReserves 等
+// 多返回值按 32 字节取位用），保留 BigInt 输出格式不变。
+//
+// 对外函数签名与旧手写版一致：encodeCall/decodeWords/wordToAddress/
+// decodeAddressArray/decodeString，调用方无感知。
 
-import { selector } from './keccak256';
+import {
+  encodeFunctionData,
+  decodeAbiParameters,
+  parseAbi,
+  parseAbiParameters,
+  hexToBigInt,
+  hexToBytes,
+  toHex,
+  sliceHex,
+  size,
+} from 'viem';
 import { t as tt } from '@/i18n';
 
-/** 金额左填充到 32 字节（64 个 hex 字符） */
-export function encodeUint(value) {
-  const v = BigInt(value);
-  if (v < 0n) throw new Error(tt('errors.abiNegativeUint'));
-  if (v >= 1n << 256n) throw new Error(tt('errors.abiUintOverflow'));
-  return v.toString(16).padStart(64, '0');
-}
-
-/** 地址右填充（高位补 0）为 32 字节 word */
-export function encodeAddress(addr) {
-  const s = String(addr).toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(s)) {
-    throw new Error(tt('errors.abiInvalidAddress', { addr }));
-  }
-  return s.slice(2).padStart(64, '0');
-}
-
-/** bool → word */
-export function encodeBool(v) {
-  return (v ? '01' : '00').padStart(64, '0');
-}
-
 /**
- * 组装 calldata：selector(sig) + 静态参数 word + 动态 address[] tail
- * types/args 支持三类：'address' | 'uint256' | 'bool' | 'address[]'
- * DeFi 调用里 address[] 最多出现一次（swap 的 path），编码为末尾 tail 段
+ * 组装 calldata（返回 0x 前缀 hex）
  * @param {string} sig 函数签名，如 'swapExactTokensForETH(uint256,uint256,address[],address,uint256)'
- * @param {string[]} types 参数类型数组
- * @param {Array} args 参数值数组
+ * @param {string[]} types 参数类型数组（仅用于长度校验与数值归一化，编码按 sig 自带类型）
+ * @param {Array} args 参数值数组（数值传 BigInt/十进制字符串，地址传 hex 字符串）
  */
 export function encodeCall(sig, types, args) {
   if (types.length !== args.length) {
     throw new Error(tt('errors.abiParamMismatch'));
   }
-  let data = selector(sig);
-  let tail = '';
-  // 动态数组的偏移 = head 全部 word 数 × 32（静态 word + 每个动态参数占 1 个偏移 word），
-  // 因为动态数据固定排在 head 之后
-  const staticCount = types.filter((t) => t !== 'address[]').length;
-  const dynamicCount = types.length - staticCount;
-  const dynamicOffset = 32 * (staticCount + dynamicCount);
-  for (let i = 0; i < types.length; i++) {
-    const type = types[i];
-    const arg = args[i];
-    if (type === 'address') {
-      data += encodeAddress(arg);
-    } else if (type === 'uint256') {
-      data += encodeUint(arg);
-    } else if (type === 'bool') {
-      data += encodeBool(arg);
-    } else if (type === 'address[]') {
-      data += encodeUint(dynamicOffset);
-      tail = encodeUint(arg.length) + arg.map((a) => encodeAddress(a)).join('');
-    } else {
-      throw new Error(tt('errors.abiUnsupportedType', { type }));
-    }
-  }
-  return data + tail;
+  const name = sig.slice(0, sig.indexOf('('));
+  if (!name) throw new Error(tt('errors.abiParamMismatch'));
+  // viem 的人类可读 ABI 需要带 'function ' 前缀；返回值子句可省略
+  const abi = parseAbi([`function ${sig}`]);
+  // 旧版调用方可能传十进制字符串，数值统一归一化为 BigInt
+  const normalized = args.map((arg, i) => {
+    if (/^(u?int)\d*$/.test(types[i]) && typeof arg === 'string') return BigInt(arg);
+    return arg;
+  });
+  return encodeFunctionData({ abi, functionName: name, args: normalized });
 }
 
 /** eth_call 返回的 hex 拆成 BigInt 数组（每 32 字节一个 word） */
 export function decodeWords(result) {
   if (!result || result === '0x') return [];
-  let hex = result.replace(/^0x/, '');
-  if (hex.length % 64 !== 0) {
-    hex = hex.slice(0, Math.floor(hex.length / 64) * 64);
-  }
+  const total = size(result);
   const words = [];
-  for (let i = 0; i < hex.length; i += 64) {
-    words.push(BigInt('0x' + hex.slice(i, i + 64)));
+  for (let i = 0; i + 32 <= total; i += 32) {
+    words.push(hexToBigInt(sliceHex(result, i, i + 32)));
   }
   return words;
 }
 
-/** word（BigInt）转地址 */
+/** word（BigInt）转地址（小写 hex，与旧版行为一致） */
 export function wordToAddress(word) {
-  return '0x' + word.toString(16).padStart(64, '0').slice(24);
+  const bytes = hexToBytes(toHex(BigInt(word), { size: 32 }));
+  return toHex(bytes.slice(12)).toLowerCase();
 }
 
-/** 解码动态 address[] 返回值（head 偏移 + 长度 + 元素） */
+/** 解码动态 address[] 返回值（如 V2 factory 的 pairs 列表） */
 export function decodeAddressArray(result) {
-  const words = decodeWords(result);
-  if (words.length === 0) return [];
-  const offset = Number(words[0]) / 32;
-  const len = Number(words[offset]);
-  const out = [];
-  for (let i = 0; i < len; i++) {
-    out.push(wordToAddress(words[offset + 1 + i]));
-  }
-  return out;
+  if (!result || result === '0x') return [];
+  const [list] = decodeAbiParameters(parseAbiParameters('address[]'), result);
+  // viem 返回带 EIP-55 校验和的地址，旧版输出小写，统一转小写保持调用方行为不变
+  return (list?.result ?? []).map((a) => a.toLowerCase());
 }
 
 /** 解码动态 string 返回值（如 ERC20 symbol()） */
 export function decodeString(result) {
-  const words = decodeWords(result);
-  if (words.length < 2) return '';
-  const len = Number(words[1]);
-  let s = '';
-  for (let i = 0; i < len; i++) {
-    const byte = Number(
-      (words[2 + Math.floor(i / 32)] >> BigInt(8 * (31 - (i % 32)))) & 0xffn
-    );
-    if (byte) s += String.fromCharCode(byte);
-  }
-  return s;
+  if (!result || result === '0x') return '';
+  const [value] = decodeAbiParameters(parseAbiParameters('string'), result);
+  return value?.result ?? '';
 }
-
-export { selector };

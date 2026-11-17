@@ -7,7 +7,9 @@ import WalletCore
  * 基于 Trust Wallet Core 实现内嵌钱包的基础 Web3 能力：
  * 助记词生成 / 校验 / 导入、多链地址派生（ETH、TRON、BTC）、消息签名、交易签名。
  *
- * 模块无状态：不保存任何私钥，助记词由调用方传入并通过 SecureStore 等方式自行保管。
+ * 基础能力之外，模块还内置私钥保管（iOS Keychain）：JS 层只传地址引用，
+ * 「按地址签名」在原生层取私钥完成，私钥 hex 不会跨桥进入 JS 上下文
+ * （savePrivateKey / signTransactionWithStoredKey / signMessageWithStoredKey）。
  */
 public class WalletModule: Module {
   public func definition() -> ModuleDefinition {
@@ -100,6 +102,55 @@ public class WalletModule: Module {
       return ["address": address]
     }
 
+    // ---------- 私钥保管（Keychain）：JS 层只拿地址引用，私钥不进 JS ----------
+
+    // 保存账号私钥到 Keychain（按地址存，仅原生层可读）
+    AsyncFunction("savePrivateKey") { (address: String, hex: String) -> Bool in
+      let key = try privateKeyFromHex(hex)
+      let addr = address.lowercased()
+      // 先删旧值再写入（幂等）
+      SecItemDelete(keychainQuery(addr) as CFDictionary)
+      var add = keychainQuery(addr)
+      add[kSecValueData as String] = key.data
+      add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      let status = SecItemAdd(add as CFDictionary, nil)
+      guard status == errSecSuccess else {
+        throw Exception(name: "KeychainError", description: "保存私钥失败（OSStatus: \(status)）")
+      }
+      return true
+    }
+
+    // 是否已保存某账号的私钥（不返回私钥本身）
+    AsyncFunction("hasPrivateKey") { (address: String) -> Bool in
+      var query = keychainQuery(address.lowercased())
+      query[kSecMatchLimit as String] = kSecMatchLimitOne
+      query[kSecReturnData as String] = false
+      let status = SecItemCopyMatching(query as CFDictionary, nil)
+      return status == errSecSuccess
+    }
+
+    // 删除账号私钥
+    AsyncFunction("deletePrivateKey") { (address: String) -> Bool in
+      let status = SecItemDelete(keychainQuery(address.lowercased()) as CFDictionary)
+      return status == errSecSuccess || status == errSecItemNotFound
+    }
+
+    // 用 Keychain 里的私钥签名以太坊消息（EIP-191）：按地址在原生层取私钥，私钥不回 JS
+    AsyncFunction("signMessageWithStoredKey") { (address: String, message: String) -> String in
+      let key = try storedPrivateKey(address)
+      return EthereumMessageSigner.signMessage(privateKey: key, message: message)
+    }
+
+    // 用 Keychain 里的私钥签名以太坊交易：按地址在原生层取私钥，私钥不回 JS
+    AsyncFunction("signTransactionWithStoredKey") {
+      (coin: String, address: String, params: [String: Any]) -> String in
+      guard coin == "ethereum" else {
+        throw unsupportedCoin(coin)
+      }
+      let key = try storedPrivateKey(address)
+      return try signEthereumTransaction(key.data, params)
+    }
+
     // 用私钥（hex）签名以太坊消息（EIP-191，等价 personal_sign）
     AsyncFunction("signMessageWithPrivateKey") { (hex: String, message: String) -> String in
       let key = try privateKeyFromHex(hex)
@@ -121,7 +172,7 @@ public class WalletModule: Module {
     }
 
     // 按账户序号派生以太坊私钥（BIP44 路径 index 位）。
-    // 仅在账号创建/迁移那一刻调用：派生出的私钥由 JS 层存 SecureStore，
+    // 仅在账号创建/迁移那一刻调用：拿到地址后由 JS 调 savePrivateKey 存入 Keychain，
     // 助记词本身不再持久化（展示一次后即丢弃）。
     AsyncFunction("derivePrivateKey") { (mnemonic: String, index: Int, passphrase: String?) -> String in
       let wallet = try makeWallet(mnemonic, passphrase)
@@ -268,6 +319,30 @@ public class WalletModule: Module {
     let output: BitcoinSigningOutput = AnySigner.sign(input: input, coin: .bitcoin)
     try checkError(output.error.rawValue, output.errorMessage)
     return output.encoded.hexString
+  }
+
+  // MARK: - Keychain 私钥保管
+
+  /// Keychain 条目定位：service 固定，account 按小写地址区分账号
+  private func keychainQuery(_ address: String) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "expo.modules.wallet",
+      kSecAttrAccount as String: "pk.\(address)",
+    ]
+  }
+
+  /// 从 Keychain 读取账号私钥（仅原生层内部使用，结果不回 JS）
+  private func storedPrivateKey(_ address: String) throws -> PrivateKey {
+    var query = keychainQuery(address.lowercased())
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    query[kSecReturnData as String] = true
+    var result: AnyObject?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    guard status == errSecSuccess, let data = result as? Data else {
+      throw Exception(name: "NoPrivateKey", description: "未找到该账号的私钥，请先重新创建/导入账号")
+    }
+    return try privateKeyFromHex(data.hexString)
   }
 
   // MARK: - 工具方法

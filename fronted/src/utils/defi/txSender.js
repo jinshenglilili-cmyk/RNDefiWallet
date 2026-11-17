@@ -4,14 +4,14 @@
 // chainId 取当前 DeFi 网络（BSC 56 / Ethereum 1 / Sepolia 11155111）。
 // DeFi 调用 = 合约 to + data（+ 可选 value）。
 //
-// 流程：取签名凭据（各账号私钥，助记词不落盘）→ nonce/gasPrice/estimateGas
-// → 签名 → 广播 → 等回执。
+// 流程：取签名凭据（地址引用，私钥在原生保管里）→ nonce/gasPrice/estimateGas
+// → 原生按地址取私钥签名（私钥不进 JS）→ 广播 → 等回执。
 
 import { Alert } from 'react-native';
 
 import Wallet from '@wallet';
 import { t as tt } from '@/i18n';
-import * as walletStore from '../walletStore';
+import { requireBiometric } from '../biometric';
 import { getNonce, getGasPrice, estimateGas, sendRawTransaction, waitForReceipt, chainId, nativeSymbol } from './bscRpc';
 import { formatEther } from '../format';
 
@@ -25,12 +25,12 @@ export async function assertSigningAccount(meta) {
   return addr;
 }
 
-/** 私钥签名通道（sign: getSigningCredential 返回值；无私钥直接报错） */
-function signRawTx(sign, params) {
-  if (!sign?.privateKey) {
+/** 原生保管私钥签名通道：按 from 地址在原生层取私钥，私钥不进 JS */
+function signRawTx(from, params) {
+  if (!from) {
     throw new Error(tt('wallet.sign.noPrivateKey'));
   }
-  return Wallet.signTransactionWithPrivateKey('ethereum', sign.privateKey, params);
+  return Wallet.signTransactionWithStoredKey('ethereum', from, params);
 }
 
 /** 地址中间截断（签名确认弹框用） */
@@ -84,11 +84,10 @@ function requestSignConfirm({ from, to, valueWei, gasLimit, method, data }) {
  * @param {string} opts.to 合约地址
  * @param {string} opts.data calldata（hex，带 0x）
  * @param {bigint|string} [opts.valueWei] 随交易发送的原生币（wei）
- * @param {string} opts.from 发起地址
- * @param {{ privateKey?: string }} opts.sign 签名凭据（getSigningCredential 返回值）
+ * @param {string} opts.from 发起地址（签名时原生层按此地址取保管中的私钥）
  * @returns {Promise<string>} 交易哈希
  */
-export async function signAndSend({ to, data, valueWei = 0n, from, sign, method }) {
+export async function signAndSend({ to, data, valueWei = 0n, from, method }) {
   const [nonce, gasPrice] = await Promise.all([getNonce(from), getGasPrice()]);
   const est = await estimateGas({
     from,
@@ -107,7 +106,12 @@ export async function signAndSend({ to, data, valueWei = 0n, from, sign, method 
   // 签名确认弹框：取消则整体中止（抛错给调用方提示）
   await requestSignConfirm({ from, to, valueWei, gasLimit, method, data });
 
-  const rawTx = await signRawTx(sign, {
+  // 签名即验身：确认交易内容后再过生物识别，未通过不签名
+  if (!(await requireBiometric())) {
+    throw new Error(tt('defi.common.userCancel'));
+  }
+
+  const rawTx = await signRawTx(from, {
     chainId: chainId(),
     nonce,
     gasPrice,
@@ -133,7 +137,7 @@ export async function signAndSendWithReceipt(opts) {
  * 确保代币授权额度足够（不足则先发一笔 approve）
  * @returns {Promise<{ approved: boolean, txHash?: string }>}
  */
-export async function ensureApproval({ tokenAddress, owner, spender, amountWei, sign }) {
+export async function ensureApproval({ tokenAddress, owner, spender, amountWei }) {
   const { allowance } = await import('./erc20');
   const current = await allowance(tokenAddress, owner, spender);
   if (current >= BigInt(amountWei)) {
@@ -145,7 +149,6 @@ export async function ensureApproval({ tokenAddress, owner, spender, amountWei, 
     data: approveData(spender, amountWei),
     valueWei: 0n,
     from: owner,
-    sign,
     method: 'approve (ERC20 授权)',
   });
   if (receipt && receipt.status !== '0x1') {

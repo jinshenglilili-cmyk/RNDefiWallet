@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, Modal, ScrollView } from 'react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { useTheme } from '@/hooks/useTheme';
 
 import Wallet from '@wallet';
-import { getPrivateKey } from '@/utils/walletStore';
+import { requireBiometric } from '@/utils/biometric';
 import { useWalletStore } from '@/hooks/useWalletStore';
 import * as walletConnect from '@/utils/walletConnect';
 import { t as tt } from '@/i18n';
@@ -40,15 +39,13 @@ export default function SignMessage() {
   const current = hasAccounts ? meta.accounts[meta.current] : '';
   const hasExternal = !!wcSession;
 
-  /** 内嵌账号：生物识别 -> 本地私钥签名 */
+  /** 内嵌账号：生物识别 -> 原生按地址取私钥签名（私钥不进 JS） */
   async function signEmbedded() {
     const ok = await requireBiometric();
     if (!ok) return;
     try {
       setBusy(true);
-      const pk = await getPrivateKey(current);
-      if (!pk) throw new Error(tt('wallet.sign.noPrivateKey'));
-      const signature = await Wallet.signMessageWithPrivateKey(pk, message);
+      const signature = await Wallet.signMessageWithStoredKey(current, message);
       setResult({ address: current, message, signature, source: 'embedded' });
     } catch (err) {
       Alert.alert(tt('wallet.sign.failed'), String(err.message ?? err));
@@ -190,30 +187,6 @@ export default function SignMessage() {
       </Modal>
     </View>
   );
-}
-
-/** 生物识别（签名前验证本人操作） */
-async function requireBiometric() {
-  try {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    if (!hasHardware || !enrolled) {
-      Alert.alert(
-        tt('wallet.sign.notEnrolledTitle'),
-        tt('wallet.sign.notEnrolledMsg')
-      );
-      return false;
-
-    }
-    const res = await LocalAuthentication.authenticateAsync({
-      promptMessage: tt('wallet.sign.promptMessage'),
-      cancelLabel: tt('common.cancel'),
-    });
-    return !!res.success;
-  } catch (err) {
-    Alert.alert(tt('wallet.sign.verifyFailed'), String(err.message ?? err));
-    return false;
-  }
 }
 
 const makeStyles = (t) =>

@@ -146,24 +146,30 @@ declare class WalletNativeModule extends NativeModule<{
     message: string,
     options?: SignMessageOptions
   ): Promise<string>;
-  /** 用私钥（hex）签名以太坊消息（EIP-191） */
-  signMessageWithPrivateKey(privateKeyHex: string, message: string): Promise<string>;
   signTransaction(
     coin: Coin,
     mnemonic: string,
     params: SignParams[Coin],
     options?: { passphrase?: string }
   ): Promise<string>;
-  /** 用私钥（hex）签名以太坊交易，返回原始交易 hex */
-  signTransactionWithPrivateKey(
-    coin: 'ethereum',
-    privateKeyHex: string,
-    params: EthereumSignParams
-  ): Promise<string>;
   /** 按账户序号派生地址（BIP44 路径 index 位），用于多账号切换 */
   deriveAddress(coin: Coin, mnemonic: string, index: number, passphrase?: string): Promise<string>;
   /** 按账户序号派生以太坊私钥（BIP44 路径 index 位），仅在账号创建/迁移时调用 */
   derivePrivateKey(mnemonic: string, index: number, passphrase?: string): Promise<string>;
+  /** 保存账号私钥到原生保管（iOS Keychain / Android Keystore 加密），私钥不回 JS */
+  savePrivateKey(address: string, privateKeyHex: string): Promise<boolean>;
+  /** 是否已在原生保管中保存某账号私钥（不返回私钥本身） */
+  hasPrivateKey(address: string): Promise<boolean>;
+  /** 删除原生保管中的账号私钥 */
+  deletePrivateKey(address: string): Promise<boolean>;
+  /** 用保管中的私钥签名以太坊消息（EIP-191）：原生层按地址取私钥，私钥不回 JS */
+  signMessageWithStoredKey(address: string, message: string): Promise<string>;
+  /** 用保管中的私钥签名以太坊交易：原生层按地址取私钥，私钥不回 JS */
+  signTransactionWithStoredKey(
+    coin: 'ethereum',
+    address: string,
+    params: EthereumSignParams
+  ): Promise<string>;
 }> {}
 
 const native = requireNativeModule<WalletNativeModule>('Wallet');
@@ -214,8 +220,9 @@ function normalizeEthereumParams(params: EthereumSignParams): Record<string, unk
  * 基于 Trust Wallet Core 实现的内嵌钱包基础能力：
  * 助记词生成 / 校验 / 导入、多链地址派生（ETH、TRON、BTC）、消息签名、交易签名。
  *
- * 模块本身不保存任何私钥状态，所有方法无状态，助记词由调用方自行通过
- * expo-secure-store 等方式安全保管。
+ * 另内置私钥保管（iOS Keychain / Android Keystore 加密）：savePrivateKey 存入后，
+ * 「按地址签名」（signTransactionWithStoredKey / signMessageWithStoredKey）在原生层
+ * 取私钥完成，私钥不会跨桥回到 JS 上下文。
  *
  * @example
  * import Wallet from '@/modules/wallet';
@@ -273,11 +280,6 @@ const Wallet = {
     return native.signMessage(coin, mnemonic, message, options);
   },
 
-  /** 用私钥（hex）签名以太坊消息（EIP-191，等价 personal_sign） */
-  signMessageWithPrivateKey(privateKeyHex: string, message: string): Promise<string> {
-    return native.signMessageWithPrivateKey(privateKeyHex.trim().replace(/^0x/i, ''), message);
-  },
-
   /**
    * 签名交易
    * - ethereum: 返回原始交易 hex（eth_sendRawTransaction 可直接广播）
@@ -301,22 +303,6 @@ const Wallet = {
     return native.signTransaction(coin, mnemonic, params, options);
   },
 
-  /**
-   * 用私钥（hex）签名以太坊交易（私钥导入账号的签名通道）
-   * 返回原始交易 hex（eth_sendRawTransaction 可直接广播）
-   */
-  signTransactionWithPrivateKey(
-    coin: 'ethereum',
-    privateKeyHex: string,
-    params: EthereumSignParams
-  ): Promise<string> {
-    return native.signTransactionWithPrivateKey(
-      coin,
-      privateKeyHex.trim().replace(/^0x/i, ''),
-      normalizeEthereumParams(params)
-    );
-  },
-
   /** 原生模块本体（一般不需要直接使用） */
   native,
 
@@ -330,10 +316,49 @@ const Wallet = {
 
   /**
    * 按账户序号派生以太坊私钥（BIP44 路径 index 位，返回 64 位 hex，无 0x 前缀）
-   * 仅在账号创建/迁移那一刻调用：私钥由调用方存 SecureStore，助记词不落盘
+   * 仅在账号创建/迁移那一刻调用：拿到地址后调 savePrivateKey 存入原生保管，助记词不落盘
    */
   derivePrivateKey(mnemonic: string, index: number, passphrase = ''): Promise<string> {
     return native.derivePrivateKey(mnemonic, index, passphrase);
+  },
+
+  /**
+   * 保存账号私钥到原生保管（iOS Keychain / Android Keystore 加密存储）
+   * 这是私钥最后一次进入 JS 上下文：保存之后签名只传地址引用
+   */
+  savePrivateKey(address: string, privateKeyHex: string): Promise<boolean> {
+    return native.savePrivateKey(address, privateKeyHex.trim().replace(/^0x/i, ''));
+  },
+
+  /** 是否已在原生保管中保存某账号私钥（不返回私钥本身） */
+  hasPrivateKey(address: string): Promise<boolean> {
+    return native.hasPrivateKey(address);
+  },
+
+  /** 删除原生保管中的账号私钥（删除账号 / 清空钱包时调用） */
+  deletePrivateKey(address: string): Promise<boolean> {
+    return native.deletePrivateKey(address);
+  },
+
+  /**
+   * 用保管中的私钥签名以太坊消息（EIP-191，等价 personal_sign）
+   * 原生层按地址取私钥完成签名，私钥不进 JS 上下文
+   */
+  signMessageWithStoredKey(address: string, message: string): Promise<string> {
+    return native.signMessageWithStoredKey(address, message);
+  },
+
+  /**
+   * 用保管中的私钥签名以太坊交易
+   * 原生层按地址取私钥完成签名，私钥不进 JS 上下文
+   * 返回原始交易 hex（eth_sendRawTransaction 可直接广播）
+   */
+  signTransactionWithStoredKey(
+    coin: 'ethereum',
+    address: string,
+    params: EthereumSignParams
+  ): Promise<string> {
+    return native.signTransactionWithStoredKey(coin, address, normalizeEthereumParams(params));
   },
 };
 

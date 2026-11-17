@@ -2,12 +2,16 @@
 //
 // 一个登录 uid 对应一份完整的钱包用户信息，收敛为单个 AsyncStorage 键：
 //   wallet.u<uid>.wallet.data = { meta, transactions }（整体读写）
-// 敏感凭据（各账号的私钥）用 expo-secure-store（iOS Keychain / Android Keystore）
-// 单独保存（按需读取，不放进用户信息对象）。
+// 敏感凭据（各账号的私钥）由原生 WalletModule 保管（iOS Keychain /
+// Android Keystore 加密，按地址存放）：JS 层只持有地址引用。savePrivateKey
+// 是私钥最后一次跨桥进入 JS（创建/导入/迁移那一刻），之后所有签名都只传
+// 地址给原生（signTransactionWithStoredKey / signMessageWithStoredKey），
+// 私钥在原生层取用，不进 JS 上下文。
 //
 // 助记词不落盘：仅在创建/导入账号的那一刻用于派生私钥（原生 derivePrivateKey），
-// 展示一次后即丢弃，之后所有签名都只用各账号的私钥。
-// 旧版本存的助记词由 ensureAccountPrivateKeys 一次性转换（派生私钥 → 删助记词）。
+// 展示一次后即丢弃。
+// 旧版本数据由 ensureAccountPrivateKeys 一次性迁移（旧 SecureStore 私钥 /
+// 助记词 → 原生保管 → 删除旧键）。
 //
 // 按登录账号分开保存：每个登录用户的用户信息存在自己的命名空间下
 // （键前缀 wallet.u<uid>.），切换登录只是切换前缀，数据永不搬家。
@@ -202,10 +206,12 @@ export async function hasWallet() {
 }
 
 /**
- * 把旧版助记词账号一次性转换成私钥账号（幂等，启动 load 时调用）：
- * 每个账号若还没有私钥 → 从旧存的助记词派生出私钥存 SecureStore，
+ * 把旧版数据一次性迁移进原生保管（幂等，启动 load 时调用）：
+ * 每个账号若原生保管里还没有私钥：
+ *   1. 旧 SecureStore 里已存的私钥直接搬（读一次 → 存原生 → 删旧键）
+ *   2. 没有则从旧存的助记词派生私钥（根助记词派生账号的 BIP44 序号没有记录，
+ *      按地址在 0..N 范围里扫描匹配找回）
  * 然后删除全部旧助记词（根助记词 + 账号独立助记词）。
- * 根助记词派生账号的 BIP44 序号没有记录，按地址在 0..N 范围里扫描匹配找回。
  */
 export async function ensureAccountPrivateKeys() {
   await ensureOwnerLoaded();
@@ -217,14 +223,16 @@ export async function ensureAccountPrivateKeys() {
     const addr = meta.accounts[i];
     if (!addr) continue;
     const lower = addr.toLowerCase();
-    if (await getPrivateKey(addr)) continue;
+    if (await Wallet.hasPrivateKey(addr)) continue;
+    // 旧版 expo-secure-store 存的私钥：最后一次读取，搬进原生保管后删除旧键
+    const legacyPk = await SecureStore.getItemAsync(k(PK_KEY_PREFIX) + lower).catch(() => null);
     // 账号独立助记词：该账号就是这套助记词的 index 0
     const own = await SecureStore.getItemAsync(k(ACCOUNT_MNEMONIC_PREFIX) + lower).catch(() => null);
-    let pk = null;
+    let pk = legacyPk;
     try {
-      if (own) {
+      if (!pk && own) {
         pk = await Wallet.derivePrivateKey('ethereum', own, 0);
-      } else if (rootMnemonic) {
+      } else if (!pk && rootMnemonic) {
         // 根助记词派生账号：按地址匹配找回派生序号（删除账号会让序号与位置错开）
         const scanMax = meta.accounts.length * 2 + 10;
         for (let idx = 0; idx <= scanMax && !pk; idx++) {
@@ -236,7 +244,8 @@ export async function ensureAccountPrivateKeys() {
       }
     } catch {}
     if (pk) await savePrivateKey(addr, pk);
-    // 无论转换成败都清掉账号独立助记词（转换失败说明助记词对不上，留着也无用）
+    // 无论迁移成败都清掉旧键（搬进原生保管 / 转换失败说明助记词对不上，留着也无用）
+    if (legacyPk) await SecureStore.deleteItemAsync(k(PK_KEY_PREFIX) + lower).catch(() => {});
     if (own) await SecureStore.deleteItemAsync(k(ACCOUNT_MNEMONIC_PREFIX) + lower).catch(() => {});
   }
   if (hasRoot) await SecureStore.deleteItemAsync(k(MNEMONIC_KEY)).catch(() => {});
@@ -247,35 +256,24 @@ export function accountName(meta, index) {
   return meta?.names?.[index] || tt('wallet.common.accountName', { index: index + 1 });
 }
 
-// ---------- 账号私钥（所有账号统一用私钥签名） ----------
+// ---------- 账号私钥（全部委托原生保管，JS 层没有读取私钥的通道） ----------
 
-/** 保存账号私钥（按地址存 SecureStore） */
+/**
+ * 保存账号私钥到原生保管（iOS Keychain / Android Keystore 加密，按地址存）。
+ * 这是私钥最后一次跨桥进入 JS（创建/导入/迁移那一刻调用），之后签名只传地址。
+ */
 export function savePrivateKey(address, privateKeyHex) {
-  return SecureStore.setItemAsync(k(PK_KEY_PREFIX) + address.toLowerCase(), privateKeyHex);
+  return Wallet.savePrivateKey(address, privateKeyHex);
 }
 
-/** 读取账号私钥（无则返回 null） */
-export function getPrivateKey(address) {
-  return SecureStore.getItemAsync(k(PK_KEY_PREFIX) + address.toLowerCase());
-}
-
-/** 删除账号私钥 */
+/** 删除原生保管中的账号私钥 */
 export function deletePrivateKey(address) {
-  return SecureStore.deleteItemAsync(k(PK_KEY_PREFIX) + address.toLowerCase());
+  return Wallet.deletePrivateKey(address);
 }
 
 /** 账号类型（创建方式记录）：'mnemonic'（助记词派生/生成）| 'private-key'（导入私钥）| 'external' */
 export function accountType(meta, index) {
   return meta?.types?.[index] ?? 'mnemonic';
-}
-
-/**
- * 取账号签名凭据：各账号的私钥（助记词已不再持久化，签名统一走私钥）
- * privateKey 为 null 表示没有凭据（旧数据转换失败/账号异常），调用方需给出提示
- */
-export async function getSigningCredential(address) {
-  const pk = address ? await getPrivateKey(address) : null;
-  return { privateKey: pk };
 }
 
 /**
@@ -287,7 +285,8 @@ export async function deleteAccountSecrets(meta, index) {
   const addr = meta.accounts[index];
   if (!addr) return;
   await deletePrivateKey(addr);
-  // 旧版独立助记词键（若迁移前残留）一并清理
+  // 旧 SecureStore 键（若迁移前残留）一并清理
+  await SecureStore.deleteItemAsync(k(PK_KEY_PREFIX) + addr.toLowerCase()).catch(() => {});
   await SecureStore.deleteItemAsync(k(ACCOUNT_MNEMONIC_PREFIX) + addr.toLowerCase()).catch(() => {});
 }
 
@@ -299,6 +298,8 @@ export async function deleteWallet() {
       if (!addr) return [];
       const lower = addr.toLowerCase();
       return [
+        deletePrivateKey(addr).catch(() => {}),
+        // 旧 SecureStore 键（若迁移前残留）一并清理
         SecureStore.deleteItemAsync(k(PK_KEY_PREFIX) + lower).catch(() => {}),
         SecureStore.deleteItemAsync(k(ACCOUNT_MNEMONIC_PREFIX) + lower).catch(() => {}),
       ];
@@ -318,12 +319,14 @@ export async function discardWallet(uid) {
   // AsyncStorage 键可直接枚举删除（wallet.data 也在前缀内）
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(prefix));
   await Promise.all(keys.map((key) => AsyncStorage.removeItem(key)));
-  // SecureStore 键无法枚举，按 meta 推断（新格式/旧格式都兼容）
+  // 私钥在原生保管（按地址，无 uid 前缀）；SecureStore 键无法枚举，按 meta 推断
+  // （新格式/旧格式都兼容）
   try {
     const { data } = await readNamespaceData(prefix);
     for (const addr of data.meta?.accounts ?? []) {
       if (!addr) continue;
       const lower = addr.toLowerCase();
+      await Wallet.deletePrivateKey(addr).catch(() => {});
       await SecureStore.deleteItemAsync(prefix + PK_KEY_PREFIX + lower).catch(() => {});
       await SecureStore.deleteItemAsync(prefix + ACCOUNT_MNEMONIC_PREFIX + lower).catch(() => {});
     }

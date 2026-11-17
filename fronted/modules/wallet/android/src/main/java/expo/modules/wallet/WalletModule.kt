@@ -1,9 +1,17 @@
 package expo.modules.wallet
 
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import com.google.protobuf.ByteString
 import expo.modules.kotlin.exception.Exception
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import wallet.core.java.AnySigner
 import wallet.core.jni.BitcoinMessageSigner
 import wallet.core.jni.BitcoinScript
@@ -11,6 +19,7 @@ import wallet.core.jni.CoinType
 import wallet.core.jni.EthereumMessageSigner
 import wallet.core.jni.HDWallet
 import wallet.core.jni.Mnemonic
+import wallet.core.jni.PrivateKey
 import wallet.core.jni.TronMessageSigner
 import wallet.core.jni.proto.Bitcoin
 import wallet.core.jni.proto.Common
@@ -23,7 +32,9 @@ import wallet.core.jni.proto.Tron
  * 基于 Trust Wallet Core 实现内嵌钱包的基础 Web3 能力：
  * 助记词生成 / 校验 / 导入、多链地址派生（ETH、TRON、BTC）、消息签名、交易签名。
  *
- * 模块无状态：不保存任何私钥，助记词由调用方传入并通过 Keystore 等方式自行保管。
+ * 基础能力之外，模块还内置私钥保管（AndroidKeyStore AES/GCM 加密 + SharedPreferences 密文）：
+ * JS 层只传地址引用，「按地址签名」在原生层解密私钥完成，私钥 hex 不会跨桥进入 JS 上下文
+ * （savePrivateKey / signTransactionWithStoredKey / signMessageWithStoredKey）。
  */
 class WalletModule : Module() {
   override fun definition() = ModuleDefinition {
@@ -104,6 +115,53 @@ class WalletModule : Module() {
       signEthereumTransaction(ByteString.copyFrom(hexToBytes(hex)), params)
     }
 
+    // 导入私钥（hex），返回对应的以太坊地址
+    AsyncFunction("importPrivateKey") { hex: String ->
+      val key = PrivateKey(hexToBytes(hex))
+      mapOf("address" to CoinType.ETHEREUM.deriveAddress(key))
+    }
+
+    // 签名以太坊消息（EIP-191，等价 personal_sign），用私钥（hex）直接签名
+    AsyncFunction("signMessageWithPrivateKey") { hex: String, message: String ->
+      EthereumMessageSigner.signMessage(PrivateKey(hexToBytes(hex)), message)
+    }
+
+    // ---------- 私钥保管（AndroidKeyStore 加密）：JS 层只拿地址引用，私钥不进 JS ----------
+
+    // 保存账号私钥（按地址存，AES/GCM 加密后落 SharedPreferences，仅原生层可解）
+    AsyncFunction("savePrivateKey") { address: String, hex: String ->
+      val keyBytes = hexToBytes(hex)
+      if (keyBytes.size != 32) {
+        throw Exception("InvalidPrivateKey", "私钥不合法")
+      }
+      pkPrefs().edit().putString(pkKey(address), encryptToBase64(keyBytes)).apply()
+      true
+    }
+
+    // 是否已保存某账号的私钥（不返回私钥本身）
+    AsyncFunction("hasPrivateKey") { address: String ->
+      pkPrefs().contains(pkKey(address))
+    }
+
+    // 删除账号私钥
+    AsyncFunction("deletePrivateKey") { address: String ->
+      pkPrefs().edit().remove(pkKey(address)).apply()
+      true
+    }
+
+    // 用保管中的私钥签名以太坊消息（EIP-191）：按地址在原生层解密私钥，私钥不回 JS
+    AsyncFunction("signMessageWithStoredKey") { address: String, message: String ->
+      EthereumMessageSigner.signMessage(PrivateKey(storedPrivateKeyBytes(address)), message)
+    }
+
+    // 用保管中的私钥签名以太坊交易：按地址在原生层解密私钥，私钥不回 JS
+    AsyncFunction("signTransactionWithStoredKey") { coin: String, address: String, params: Map<String, Any?> ->
+      if (coin != "ethereum") {
+        throw unsupportedCoin(coin)
+      }
+      signEthereumTransaction(ByteString.copyFrom(storedPrivateKeyBytes(address)), params)
+    }
+
     // 按账户序号派生地址（BIP44 路径 index 位），用于多账号切换
     AsyncFunction("deriveAddress") { coin: String, mnemonic: String, index: Int, passphrase: String? ->
       val wallet = makeWallet(mnemonic, passphrase)
@@ -120,7 +178,7 @@ class WalletModule : Module() {
     }
 
     // 按账户序号派生以太坊私钥（BIP44 路径 index 位）。
-    // 仅在账号创建/迁移那一刻调用：派生出的私钥由 JS 层存 SecureStore，
+    // 仅在账号创建/迁移那一刻调用：拿到地址后由 JS 调 savePrivateKey 存入原生保管，
     // 助记词本身不再持久化（展示一次后即丢弃）。
     AsyncFunction("derivePrivateKey") { mnemonic: String, index: Int, passphrase: String? ->
       val wallet = makeWallet(mnemonic, passphrase)
@@ -277,6 +335,67 @@ class WalletModule : Module() {
     val output = AnySigner.sign(input.build(), CoinType.BITCOIN, Bitcoin.SigningOutput.parser())
     checkError(output.error, output.errorMessage)
     return toHex(output.encoded.toByteArray())
+  }
+
+  // MARK: - 私钥保管（AndroidKeyStore AES/GCM + SharedPreferences 密文）
+
+  private companion object {
+    const val MASTER_KEY_ALIAS = "wallet_pk_master"
+    const val PK_PREFS = "wallet_pk"
+  }
+
+  /// 私钥密文存放的 SharedPreferences（app 私有目录，密文不可读出明文）
+  private fun pkPrefs() =
+    appContext?.reactContext?.getSharedPreferences(PK_PREFS, Context.MODE_PRIVATE)
+      ?: throw Exception("StorageError", "无法访问本地存储")
+
+  /// Keychain/Keystore 账号键：按小写地址区分账号
+  private fun pkKey(address: String) = "pk.${address.lowercase()}"
+
+  /// AndroidKeyStore 里的 AES/GCM 主密钥（首次调用生成，之后复用）
+  private fun masterKey(): SecretKey {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (keyStore.getEntry(MASTER_KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    generator.init(
+      KeyGenParameterSpec.Builder(
+        MASTER_KEY_ALIAS,
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+      )
+        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+        .build()
+    )
+    return generator.generateKey()
+  }
+
+  /// 加密为 "base64(iv):base64(ciphertext)"（GCM 的 iv 每次随机，随密文一起存）
+  private fun encryptToBase64(plain: ByteArray): String {
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(Cipher.ENCRYPT_MODE, masterKey())
+    val cipherText = cipher.doFinal(plain)
+    return Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
+      Base64.encodeToString(cipherText, Base64.NO_WRAP)
+  }
+
+  /// 解密 "base64(iv):base64(ciphertext)"
+  private fun decryptFromBase64(stored: String): ByteArray {
+    val parts = stored.split(":", limit = 2)
+    if (parts.size != 2) throw Exception("StorageError", "私钥密文格式不合法")
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(Cipher.DECRYPT_MODE, masterKey(), javax.crypto.spec.GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
+    return cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP))
+  }
+
+  /// 从保管中解密账号私钥字节（仅原生层内部使用，结果不回 JS）
+  private fun storedPrivateKeyBytes(address: String): ByteArray {
+    val stored = pkPrefs().getString(pkKey(address), null)
+      ?: throw Exception("NoPrivateKey", "未找到该账号的私钥，请先重新创建/导入账号")
+    return try {
+      decryptFromBase64(stored)
+    } catch (e: Exception) {
+      throw Exception("StorageError", "读取私钥失败")
+    }
   }
 
   // MARK: - 工具方法
