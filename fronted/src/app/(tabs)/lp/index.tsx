@@ -50,7 +50,7 @@ export default function LpTab() {
           const pair = await pancake.getPair(wrappedAddress(), token.address);
           if (!pair || BigInt(pair) === 0n) return null;
           const [[t0, t1], [res0, res1], totalSupply] = await Promise.all([
-            pancake.pairTokens(pair), // 拿到对两种币的 顺序
+            pancake.pairTokens(pair), // 拿到对两种币的 顺序 pair 是池子的地址
             pancake.getReserves(pair), // 拿到对应顺序的 代币余额
             pancake.pairTotalSupply(pair), // 总流动性，  是一个流动性份额总值
           ]);

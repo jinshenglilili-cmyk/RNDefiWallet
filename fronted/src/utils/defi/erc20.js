@@ -1,7 +1,8 @@
 // ERC-20 只读调用与 approve 数据构造
 
 import { ethCall } from './bscRpc';
-import { encodeCall, decodeWords } from './abi';
+import { encodeCall, decodeCall } from './abi';
+import { ERC20_ABI, WETH_ABI } from './abis';
 
 /** 余额（BigInt，按代币最小单位）
  *
@@ -12,9 +13,9 @@ import { encodeCall, decodeWords } from './abi';
 export async function balanceOf(tokenAddress, owner) {
   const result = await ethCall(
     tokenAddress,
-    encodeCall('balanceOf(address)', ['address'], [owner])
+    encodeCall(ERC20_ABI, 'balanceOf', [owner])
   );
-  return decodeWords(result)[0] ?? 0n;
+  return decodeCall(ERC20_ABI, 'balanceOf', result) ?? 0n;
 }
 
 /** 精度（number）
@@ -24,8 +25,8 @@ export async function balanceOf(tokenAddress, owner) {
  * 返参：6（USDT/USDC 是 6；多数代币 18）
  */
 export async function decimals(tokenAddress) {
-  const result = await ethCall(tokenAddress, encodeCall('decimals()', [], []));
-  return Number(decodeWords(result)[0] ?? 18);
+  const result = await ethCall(tokenAddress, encodeCall(ERC20_ABI, 'decimals', []));
+  return Number(decodeCall(ERC20_ABI, 'decimals', result) ?? 18);
 }
 
 /** 授权额度（BigInt）
@@ -37,9 +38,9 @@ export async function decimals(tokenAddress) {
 export async function allowance(tokenAddress, owner, spender) {
   const result = await ethCall(
     tokenAddress,
-    encodeCall('allowance(address,address)', ['address', 'address'], [owner, spender])
+    encodeCall(ERC20_ABI, 'allowance', [owner, spender])
   );
-  return decodeWords(result)[0] ?? 0n;
+  return decodeCall(ERC20_ABI, 'allowance', result) ?? 0n;
 }
 
 /** approve calldata（approve 给 spender 花 amount）
@@ -52,7 +53,7 @@ export async function allowance(tokenAddress, owner, spender) {
  * 发这笔交易后 Router 才能从你的地址 transferFrom 最多 100 USDT
  */
 export function approveData(spender, amount) {
-  return encodeCall('approve(address,uint256)', ['address', 'uint256'], [spender, amount]);
+  return encodeCall(ERC20_ABI, 'approve', [spender, amount]);
 }
 
 /** WBNB.wrap：原生 BNB 存成 WBNB 的 calldata（value 携带 BNB）
@@ -62,7 +63,7 @@ export function approveData(spender, amount) {
  * 兑换比例固定 1:1：value 发 1000000000000000000n（1 BNB）→ 得到 1e18 WBNB
  */
 export function wbnbDepositData() {
-  return encodeCall('deposit()', [], []);
+  return encodeCall(WETH_ABI, 'deposit', []);
 }
 
 /** WBNB.unwrap：WBNB 取回原生 BNB 的 calldata
@@ -73,5 +74,5 @@ export function wbnbDepositData() {
  * 1:1 烧掉 0.5 WBNB，退回 0.5 BNB；这笔交易 value = 0n
  */
 export function wbnbWithdrawData(amount) {
-  return encodeCall('withdraw(uint256)', ['uint256'], [amount]);
+  return encodeCall(WETH_ABI, 'withdraw', [amount]);
 }

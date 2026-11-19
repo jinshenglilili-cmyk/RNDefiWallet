@@ -9,10 +9,4 @@ export default {
   // 金额解析（utils/format.js）
   amountFormat: '金额格式不对：%{text}',
   amountDecimals: '小数位最多 18 位',
-  // ABI 编码（utils/defi/abi.js）
-  abiNegativeUint: 'encodeUint 不支持负数',
-  abiUintOverflow: '数值超出 uint256',
-  abiInvalidAddress: '地址格式不对：%{addr}',
-  abiParamMismatch: '参数数量与类型不匹配',
-  abiUnsupportedType: '不支持的 ABI 类型：%{type}',
 };

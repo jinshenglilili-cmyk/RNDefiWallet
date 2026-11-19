@@ -9,10 +9,4 @@ export default {
   // Amount parsing (utils/format.js)
   amountFormat: 'Invalid amount format: %{text}',
   amountDecimals: 'At most 18 decimal places',
-  // ABI encoding (utils/defi/abi.js)
-  abiNegativeUint: 'encodeUint does not support negative numbers',
-  abiUintOverflow: 'Value exceeds uint256',
-  abiInvalidAddress: 'Invalid address format: %{addr}',
-  abiParamMismatch: 'Parameter count does not match types',
-  abiUnsupportedType: 'Unsupported ABI type: %{type}',
 };

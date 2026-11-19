@@ -103,18 +103,6 @@ export const get = (url, params) => request(url, { method: 'GET', params });
 export const post = (url, body) => request(url, { method: 'POST', body });
 
 /**
- * PUT 请求
- * @param {string} url - 请求地址
- * @param {object} body - 请求体数据
- * @returns {Promise<any>} 返回解析后的 JSON 数据
- *
- * @example
- * // 更新数据
- * put('/users/info', { nickname: 'clwy', company: '长乐未央公司' })
- */
-export const put = (url, body) => request(url, { method: 'PUT', body });
-
-/**
  * PATCH 请求
  * @param {string} url - 请求地址
  * @param {object} body - 请求体数据

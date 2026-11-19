@@ -3,7 +3,8 @@
 
 import { ethCall } from './bscRpc';
 import { t as tt } from '@/i18n';
-import { encodeCall, decodeWords, wordToAddress } from './abi';
+import { encodeCall, decodeCall } from './abi';
+import { FACTORY_ABI, PAIR_ABI, ROUTER_ABI } from './abis';
 import { net, pathAddress } from '@/hooks/useDefiNetwork';
 import { parseEther, formatEther } from '../format';
 
@@ -31,27 +32,26 @@ export function defaultDeadline() {
  *       没有这个交易对时返回全 0 → '0x0000000000000000000000000000000000000000'
  */
 export async function getPair(tokenA, tokenB) {
-  const result = await ethCall(
-    net().factory,
-    encodeCall('getPair(address,address)', ['address', 'address'], [tokenA, tokenB])
-  );
-  return wordToAddress(decodeWords(result)[0] ?? 0n);
+  const result = await ethCall(net().factory, encodeCall(FACTORY_ABI, 'getPair', [tokenA, tokenB]));
+  // 无交易对时返回全 0 地址（调用方用 BigInt(pair) === 0n判断）
+  return decodeCall(FACTORY_ABI, 'getPair', result)?.toLowerCase()
+    ?? '0x0000000000000000000000000000000000000000';
 }
 
 /**
  * Pair.getReserves：返回 [reserve0, reserve1]（BigInt，最小单位）
  *
  * @example
- * 入参：getReserves(pair 地址) → data = '0x0900f010'（无参数，只有选择器）
+ * 入参：getReserves(pair 地址) → data = '0x0902f1ac'（无参数，只有选择器）
  * 返参：'0x0000…0439b0 + 0000…0044c8…'（3 个 word：reserve0, reserve1, blockTimestamp）
  *       → 解码 = [76221000000000000n, 300867216000000n]
  *         （0.076221 ETH + 300.867216 USDT，USDT 6 位小数）
  * 注意 reserve0/reserve1 对应 token0/token1 的排序，不是 USDT/ETH 的展示顺序
  */
 export async function getReserves(pair) {
-  const result = await ethCall(pair, encodeCall('getReserves()', [], []));
-  const words = decodeWords(result);
-  return [words[0] ?? 0n, words[1] ?? 0n];
+  const result = await ethCall(pair, encodeCall(PAIR_ABI, 'getReserves', []));
+  const [r0, r1] = decodeCall(PAIR_ABI, 'getReserves', result) ?? [];
+  return [r0 ?? 0n, r1 ?? 0n];
 }
 
 /**
@@ -63,8 +63,8 @@ export async function getReserves(pair) {
  *       （LP 也是 ERC20，9 位小数；478000000000 / 1e9 = 478 LP 份）
  */
 export async function pairTotalSupply(pair) {
-  const result = await ethCall(pair, encodeCall('totalSupply()', [], []));
-  return decodeWords(result)[0] ?? 0n;
+  const result = await ethCall(pair, encodeCall(PAIR_ABI, 'totalSupply', []));
+  return decodeCall(PAIR_ABI, 'totalSupply', result) ?? 0n;
 }
 
 /**
@@ -77,10 +77,14 @@ export async function pairTotalSupply(pair) {
  */
 export async function pairTokens(pair) {
   const [r0, r1] = await Promise.all([
-    ethCall(pair, encodeCall('token0()', [], [])),
-    ethCall(pair, encodeCall('token1()', [], [])),
+    ethCall(pair, encodeCall(PAIR_ABI, 'token0', [])),
+    ethCall(pair, encodeCall(PAIR_ABI, 'token1', [])),
   ]);
-  return [wordToAddress(decodeWords(r0)[0] ?? 0n), wordToAddress(decodeWords(r1)[0] ?? 0n)];
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  return [
+    decodeCall(PAIR_ABI, 'token0', r0)?.toLowerCase() ?? ZERO,
+    decodeCall(PAIR_ABI, 'token1', r1)?.toLowerCase() ?? ZERO,
+  ];
 }
 
 /**
@@ -96,18 +100,17 @@ export async function pairTokens(pair) {
  *         + '0x0000…016345785d8a0000'               // 0.1 ETH（1e17）
  *         + 偏移 '0x20' + 数组长度 '0x2'
  *         + WETH 地址填充 32 字节 + USDT 地址填充 32 字节
- * 返参：'0x…' 解码 words 后 = [100000000000000000n, 394800000n]
+ * 返参：'0x…' 按 ABI outputs 解码后 = [100000000000000000n, 394800000n]
  *       （第 0 位 = 输入原样；第 1 位 = 394.8 USDT，6 位小数）
  */
 export async function getAmountsOut(amountIn, path) {
   const result = await ethCall(
-    net().router,
-    encodeCall('getAmountsOut(uint256,address[])', ['uint256', 'address[]'], [amountIn, path])
+    net().router, // 调用的合约地址
+    encodeCall(ROUTER_ABI, 'getAmountsOut', [amountIn, path]),
   );
-  const words = decodeWords(result);
-  // 返回 = [数组偏移, 长度, 元素...]
-  if (words.length < 2) throw new Error(tt('defi.pancake.quoteFailed'));
-  return words.slice(2);
+  const amounts = decodeCall(ROUTER_ABI, 'getAmountsOut', result);
+  if (!amounts || amounts.length < 2) throw new Error(tt('defi.pancake.quoteFailed'));
+  return amounts;
 }
 
 /**
@@ -118,17 +121,16 @@ export async function getAmountsOut(amountIn, path) {
  * 入参：amountA = 10000000000000000n（0.01 ETH）
  *       reserveA = 76221000000000000n（池子现有 0.076221 ETH）
  *       reserveB = 300867216000000n（池子现有 300.867216 USDT）
- *       → data = '0xa1cb65ad' + 三个 uint256 各填充 32 字节
+ *       → data = '0xad615dec' + 三个 uint256 各填充 32 字节
  * 返参：39480000n（= 39.48 USDT，6 位小数）
  *       即想投 0.01 ETH 就要按比例搭配 39.48 USDT
  */
 export async function quote(amountA, reserveA, reserveB) {
   const result = await ethCall(
     net().router,
-    encodeCall('quote(uint256,uint256,uint256)', ['uint256', 'uint256', 'uint256'],
-      [amountA, reserveA, reserveB])
+    encodeCall(ROUTER_ABI, 'quote', [amountA, reserveA, reserveB]),
   );
-  return decodeWords(result)[0] ?? 0n;
+  return decodeCall(ROUTER_ABI, 'quote', result) ?? 0n;
 }
 
 // ---------- 兑换 calldata ----------
@@ -141,15 +143,13 @@ export async function quote(amountA, reserveA, reserveB) {
  *       path = [WETH 地址, USDT 地址]、to = '0x1492…fD60'（收币地址）
  *       deadline = 1763356800
  * 返参：'0x7ff36ab5'                                   // swapExactETHForTokens 选择器
- *       + '0x0000…175168ea8e00'                        // amountOutMin（391.9668 USDT）
+ *       + '0x0000…175cf050'                          // amountOutMin（391.9668 USDT）
  *       + 偏移 '0x20' + 长度 '0x2' + 两个地址填充 32 字节
  *       + '0x0000…68e92100'                            // deadline
  * 注意：0.1 ETH 本身不走 data，放在交易的 value 字段里随交易发送
  */
 export function swapETHForTokensData(amountOutMin, path, to, deadline) {
-  return encodeCall('swapExactETHForTokens(uint256,address[],address,uint256)',
-    ['uint256', 'address[]', 'address', 'uint256'],
-    [amountOutMin, path, to, deadline]);
+  return encodeCall(ROUTER_ABI, 'swapExactETHForTokens', [amountOutMin, path, to, deadline]);
 }
 
 /**
@@ -164,9 +164,13 @@ export function swapETHForTokensData(amountOutMin, path, to, deadline) {
  * 前提：已对 Router approve 过至少 100000000（ensureApproval 会自动做）
  */
 export function swapTokensForETHData(amountIn, amountOutMin, path, to, deadline) {
-  return encodeCall('swapExactTokensForETH(uint256,uint256,address[],address,uint256)',
-    ['uint256', 'uint256', 'address[]', 'address', 'uint256'],
-    [amountIn, amountOutMin, path, to, deadline]);
+  return encodeCall(ROUTER_ABI, 'swapExactTokensForETH', [
+    amountIn,
+    amountOutMin,
+    path,
+    to,
+    deadline,
+  ]);
 }
 
 /**
@@ -180,9 +184,13 @@ export function swapTokensForETHData(amountIn, amountOutMin, path, to, deadline)
  * 前提：已对 Router approve 过 fromToken（USDT）
  */
 export function swapTokensForTokensData(amountIn, amountOutMin, path, to, deadline) {
-  return encodeCall('swapExactTokensForTokens(uint256,uint256,address[],address,uint256)',
-    ['uint256', 'uint256', 'address[]', 'address', 'uint256'],
-    [amountIn, amountOutMin, path, to, deadline]);
+  return encodeCall(ROUTER_ABI, 'swapExactTokensForTokens', [
+    amountIn,
+    amountOutMin,
+    path,
+    to,
+    deadline,
+  ]);
 }
 
 /**
@@ -249,10 +257,22 @@ export function buildSwap(fromToken, toToken, amountInWei, amountOutMin, userAdd
  *       + 六个参数按序填充 32 字节
  * 交易的 value = 0.1 ETH（BNB 侧随交易发）；发之前要先 approve Router 动 USDT
  */
-export function addLiquidityETHData(tokenAddress, amountTokenDesired, amountTokenMin, amountBNBMin, to, deadline) {
-  return encodeCall('addLiquidityETH(address,uint256,uint256,uint256,address,uint256)',
-    ['address', 'uint256', 'uint256', 'uint256', 'address', 'uint256'],
-    [tokenAddress, amountTokenDesired, amountTokenMin, amountBNBMin, to, deadline]);
+export function addLiquidityETHData(
+  tokenAddress,
+  amountTokenDesired,
+  amountTokenMin,
+  amountBNBMin,
+  to,
+  deadline,
+) {
+  return encodeCall(ROUTER_ABI, 'addLiquidityETH', [
+    tokenAddress,
+    amountTokenDesired,
+    amountTokenMin,
+    amountBNBMin,
+    to,
+    deadline,
+  ]);
 }
 
 /**
@@ -263,12 +283,24 @@ export function addLiquidityETHData(tokenAddress, amountTokenDesired, amountToke
  *       liquidity = 239000000000n（239 LP 份，9 位小数，amountWei 数量）
  *       amountTokenMin = 157000000n（至少拿回 157 USDT）、amountBNBMin = 38000000000000000n（至少 0.038 ETH）
  *       to = '0x1492…fD60'、deadline = 1763356800
- * 返参：'0x02751ce9'                     // removeLiquidityETH 选择器
+ * 返参：'0x02751cec'                     // removeLiquidityETH 选择器
  *       + 六个参数按序填充 32 字节
  * 交易的 value = 0n（不付原生币）；但 LP 凭证本身要先 approve Router（pair 也是 ERC20）
  */
-export function removeLiquidityETHData(tokenAddress, liquidity, amountTokenMin, amountBNBMin, to, deadline) {
-  return encodeCall('removeLiquidityETH(address,uint256,uint256,uint256,address,uint256)',
-    ['address', 'uint256', 'uint256', 'uint256', 'address', 'uint256'],
-    [tokenAddress, liquidity, amountTokenMin, amountBNBMin, to, deadline]);
+export function removeLiquidityETHData(
+  tokenAddress,
+  liquidity,
+  amountTokenMin,
+  amountBNBMin,
+  to,
+  deadline,
+) {
+  return encodeCall(ROUTER_ABI, 'removeLiquidityETH', [
+    tokenAddress,
+    liquidity,
+    amountTokenMin,
+    amountBNBMin,
+    to,
+    deadline,
+  ]);
 }

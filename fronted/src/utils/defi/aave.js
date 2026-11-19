@@ -2,7 +2,8 @@
 // 网络：BSC 主网 / Sepolia 测试网（地址见 hooks/useDefiNetwork.js 的 net()）
 
 import { ethCall } from './bscRpc';
-import { encodeCall, decodeWords, wordToAddress } from './abi';
+import { encodeCall, decodeCall } from './abi';
+import { AAVE_POOL_ABI, AAVE_PROVIDER_ABI, AAVE_ORACLE_ABI } from './abis';
 import { net } from '@/hooks/useDefiNetwork';
 
 /**
@@ -15,16 +16,17 @@ import { net } from '@/hooks/useDefiNetwork';
 export async function getUserAccountData(address) {
   const result = await ethCall(
     net().aave.pool,
-    encodeCall('getUserAccountData(address)', ['address'], [address])
+    encodeCall(AAVE_POOL_ABI, 'getUserAccountData', [address])
   );
-  const w = decodeWords(result);
+  const [totalCollateralBase, totalDebtBase, availableBorrowsBase, currentLiquidationThreshold, ltv, healthFactor] =
+    decodeCall(AAVE_POOL_ABI, 'getUserAccountData', result) ?? [];
   return {
-    totalCollateralBase: w[0] ?? 0n,
-    totalDebtBase: w[1] ?? 0n,
-    availableBorrowsBase: w[2] ?? 0n,
-    currentLiquidationThreshold: w[3] ?? 0n,
-    ltv: w[4] ?? 0n,
-    healthFactor: w[5] ?? 0n,
+    totalCollateralBase: totalCollateralBase ?? 0n,
+    totalDebtBase: totalDebtBase ?? 0n,
+    availableBorrowsBase: availableBorrowsBase ?? 0n,
+    currentLiquidationThreshold: currentLiquidationThreshold ?? 0n,
+    ltv: ltv ?? 0n,
+    healthFactor: healthFactor ?? 0n,
   };
 }
 
@@ -48,36 +50,15 @@ export function formatHealthFactor(hf) {
 export async function reserveTokens(asset) {
   const result = await ethCall(
     net().aave.dataProvider,
-    encodeCall('getReserveTokensAddresses(address)', ['address'], [asset])
+    encodeCall(AAVE_PROVIDER_ABI, 'getReserveTokensAddresses', [asset])
   );
-  const w = decodeWords(result);
+  const [aTokenAddress, stableDebtTokenAddress, variableDebtTokenAddress] =
+    decodeCall(AAVE_PROVIDER_ABI, 'getReserveTokensAddresses', result) ?? [];
+  const ZERO = '0x0000000000000000000000000000000000000000';
   return {
-    aToken: wordToAddress(w[0] ?? 0n),
-    stableDebtToken: wordToAddress(w[1] ?? 0n),
-    variableDebtToken: wordToAddress(w[2] ?? 0n),
-  };
-}
-
-/**
- * DataProvider.getReserveData（新版返回 12 个数值 word，无地址段）
- * 提取展示要用的字段：decimals / ltv / liquidationThreshold / active / borrowingEnabled / paused
- */
-export async function reserveInfo(asset) {
-  const result = await ethCall(
-    net().aave.dataProvider,
-    encodeCall('getReserveData(address)', ['address'], [asset])
-  );
-  const w = decodeWords(result);
-  if (w.length === 0) return null;
-  return {
-    decimals: Number(w[0] ?? 18),
-    ltv: Number(w[1] ?? 0),                        // 8000 = 80%
-    liquidationThreshold: Number(w[2] ?? 0),
-    usageAsCollateralEnabled: Number(w[4] ?? 0) === 1,
-    isActive: Number(w[5] ?? 0) === 1,
-    isFrozen: Number(w[6] ?? 0) === 1,
-    borrowingEnabled: Number(w[7] ?? 0) === 1,
-    isPaused: Number(w[9] ?? 0) === 1,
+    aToken: aTokenAddress?.toLowerCase() ?? ZERO,
+    stableDebtToken: stableDebtTokenAddress?.toLowerCase() ?? ZERO,
+    variableDebtToken: variableDebtTokenAddress?.toLowerCase() ?? ZERO,
   };
 }
 
@@ -85,25 +66,21 @@ export async function reserveInfo(asset) {
 export async function assetPrice(asset) {
   const result = await ethCall(
     net().aave.oracle,
-    encodeCall('getAssetPrice(address)', ['address'], [asset])
+    encodeCall(AAVE_ORACLE_ABI, 'getAssetPrice', [asset])
   );
-  return decodeWords(result)[0] ?? 0n;
+  return decodeCall(AAVE_ORACLE_ABI, 'getAssetPrice', result) ?? 0n;
 }
 
 // ---------- 交易 calldata ----------
 
 /** Pool.supply：存币生息（需先 approve 给 Pool） */
 export function supplyData(asset, amount, onBehalfOf) {
-  return encodeCall('supply(address,uint256,address,uint16)',
-    ['address', 'uint256', 'address', 'uint256'],
-    [asset, amount, onBehalfOf, 0]);
+  return encodeCall(AAVE_POOL_ABI, 'supply', [asset, amount, onBehalfOf, 0]);
 }
 
 /** Pool.withdraw：取回存款（aToken 会同时销毁） */
 export function withdrawData(asset, amount, to) {
-  return encodeCall('withdraw(address,uint256,address)',
-    ['address', 'uint256', 'address'],
-    [asset, amount, to]);
+  return encodeCall(AAVE_POOL_ABI, 'withdraw', [asset, amount, to]);
 }
 
 /** USD 金额格式化（base 货币 8 位精度 → '$12.34'） */

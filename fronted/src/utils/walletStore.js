@@ -271,11 +271,6 @@ export function deletePrivateKey(address) {
   return Wallet.deletePrivateKey(address);
 }
 
-/** 账号类型（创建方式记录）：'mnemonic'（助记词派生/生成）| 'private-key'（导入私钥）| 'external' */
-export function accountType(meta, index) {
-  return meta?.types?.[index] ?? 'mnemonic';
-}
-
 /**
  * 删除账号（对齐参考项目 AccountSelectorView 的 onDelete）：
  * 若删的是当前账号，选中退化为最后一个账号；没有账号则清空选择

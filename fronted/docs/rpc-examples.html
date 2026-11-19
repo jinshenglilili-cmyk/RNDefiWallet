@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPC 调用示例手册</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #2c3e50; background: #f7f8fa; line-height: 1.7; }
+  .layout { display: flex; min-height: 100vh; }
+
+  /* 左侧目录 */
+  aside { width: 260px; flex-shrink: 0; background: #fff; border-right: 1px solid #e8eaed; padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  aside h1 { font-size: 16px; padding: 0 20px 14px; border-bottom: 1px solid #eee; margin-bottom: 14px; color: #1a1a2e; }
+  aside a { display: block; padding: 7px 20px; font-size: 13px; color: #555; text-decoration: none; border-left: 3px solid transparent; }
+  aside a:hover { background: #f0f4ff; color: #3b5bdb; }
+  aside .group { font-size: 11px; color: #999; padding: 14px 20px 4px; letter-spacing: 1px; }
+  aside code { font-family: Menlo, Consolas, monospace; font-size: 12px; background: none; }
+
+  /* 右侧内容 */
+  main { flex: 1; max-width: 860px; padding: 32px 40px 80px; }
+  main > p.tip { background: #fff8e1; border: 1px solid #f5d67b; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 28px; }
+  section { margin-bottom: 44px; scroll-margin-top: 20px; }
+  h2 { font-size: 20px; padding-bottom: 8px; border-bottom: 2px solid #3b5bdb; margin-bottom: 6px; color: #1a1a2e; }
+  h3 { font-size: 16px; margin: 22px 0 6px; color: #3b5bdb; }
+  .desc { font-size: 13px; color: #666; margin: 6px 0 10px; }
+
+  pre { background: #1e1e2e; color: #cdd6f4; border-radius: 10px; padding: 14px 18px; font-family: Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.75; overflow-x: auto; margin: 8px 0; }
+  pre .c { color: #7f849c; }      /* 注释 */
+  pre .k { color: #89b4fa; }      /* JSON key */
+  pre .s { color: #a6e3a1; }      /* 字符串值 */
+  pre .n { color: #fab387; }      /* 数字值 */
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 10px 0; }
+  th, td { border: 1px solid #e0e3e8; padding: 6px 10px; text-align: left; }
+  th { background: #eef1f6; }
+  code.inline { font-family: Menlo, monospace; background: #eef1f6; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside>
+  <h1>RPC 调用示例</h1>
+  <div class="group">一、原生币方法</div>
+  <a href="#native-balance">eth_getBalance</a>
+  <a href="#native-nonce">eth_getTransactionCount</a>
+  <a href="#native-gasprice">eth_gasPrice</a>
+  <a href="#native-chainid">eth_chainId</a>
+  <a href="#native-estimategas">eth_estimateGas</a>
+  <a href="#native-send">eth_sendRawTransaction</a>
+  <a href="#native-receipt">eth_getTransactionReceipt</a>
+  <div class="group">二、代币方法（ERC20）</div>
+  <a href="#token-balanceOf">balanceOf 余额</a>
+  <a href="#token-decimals">decimals 精度</a>
+  <a href="#token-symbol">symbol 名称</a>
+  <a href="#token-allowance">allowance 授权额度</a>
+  <a href="#token-approve">approve 授权（写）</a>
+  <a href="#token-transfer">transfer 转账（写）</a>
+  <div class="group">三、合约调用方法</div>
+  <a href="#dex-getpair">Factory.getPair</a>
+  <a href="#dex-getreserves">Pair.getReserves</a>
+  <a href="#dex-getamountsout">Router.getAmountsOut</a>
+  <a href="#aave-getuserdata">Aave.getUserAccountData</a>
+  <a href="#aave-supply">Aave.supply 存入（写）</a>
+  <a href="#dex-swapeth">Router.swapExactETHForTokens（写）</a>
+  <a href="#dex-addliq">Router.addLiquidityETH（写）</a>
+  <div class="group">四、读写参数对比</div>
+  <a href="#write-compare">写交易：原生币 / ERC20 / 合约</a>
+  <a href="#write-compare">读调用：原生币 / ERC20 / 合约</a>
+</aside>
+
+<main>
+  <p class="tip">注意：JSON 本身不支持注释，本文中的 <span class="c">// 说明</span> 只用于讲解。实际请求必须去掉所有 <span class="c">//</span> 后面的内容。金额一律最小单位整数（ETH 18 位 / USDT 6 位 / Aave USD 价 8 位），RPC 里全部 0x 前缀 16 进制。</p>
+
+  <!-- ============ 一、原生币 ============ -->
+  <section id="native">
+    <h2>一、原生币方法</h2>
+    <p class="desc">原生币（ETH/BNB）的余额、nonce、gas 等由节点直接提供，不经过任何合约。每个 RPC 的固定外壳（jsonrpc / id / method）都是同一套，下面每个示例仍逐字段标注。</p>
+
+    <h3 id="native-balance">eth_getBalance — 查原生币余额</h3>
+<pre><span class="c">// 请求</span>
+{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本，固定 2.0</span>
+  <span class="k">"id"</span>: <span class="n">1</span>,                       <span class="c">// 请求序号，响应原样带回，用于配对响应和请求</span>
+  <span class="k">"method"</span>: <span class="s">"eth_getBalance"</span>,    <span class="c">// 方法名：查地址的原生币余额</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    <span class="s">"0x1492bb948655f48d970B0459ADdb6D965545fD60"</span>,  <span class="c">// 参数1 = 要查的钱包地址</span>
+    <span class="s">"latest"</span>                     <span class="c">// 参数2 = 执行区块："latest" 最新已确认 / "pending" 含未打包 / "0x64a3b" 指定块号</span>
+  ]
+}
+<span class="c">// 响应</span>
+{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 与请求相同</span>
+  <span class="k">"id"</span>: <span class="n">1</span>,                       <span class="c">// 与请求 id 相同 → 配对</span>
+  <span class="k">"result"</span>: <span class="s">"0x1bc16d674ec80000"</span> <span class="c">// 余额（wei，hex）：转 10 进制 = 2000000000000000000 ÷ 10^18 = 2 ETH</span>
+}</pre>
+
+    <h3 id="native-nonce">eth_getTransactionCount — 查 nonce（账号已发交易数）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">2</span>,                       <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_getTransactionCount"</span>,  <span class="c">// 查账号已发交易数（= 下一笔交易的 nonce）</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    <span class="s">"0x1492bb948655f48d970B0459ADdb6D965545fD60"</span>,  <span class="c">// 参数1 = 发起交易的地址</span>
+    <span class="s">"pending"</span>                    <span class="c">// 参数2 = 计数范围："pending" 把 mempool 未打包交易也算上（防 nonce 撞车）；"latest" 只算已上链</span>
+  ]
+}
+<span class="c">// 响应 result: "0x7"  —— hex 转 10 进制 = 7；下一笔交易的 nonce 填 7</span></pre>
+
+    <h3 id="native-gasprice">eth_gasPrice — 查当前 gas 单价</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">3</span>,                       <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_gasPrice"</span>,      <span class="c">// 查网络当前建议的 gas 单价</span>
+  <span class="k">"params"</span>: []                   <span class="c">// 无参数（信息全在网络侧，不需要输入）</span>
+}
+<span class="c">// 响应 result: "0x9502f900"  —— hex 转 10 进制 = 2500000000 wei = 2.5 gwei</span>
+<span class="c">// 转账成本估算：21000 gas × 2.5 gwei = 52500000000000 wei ≈ 0.0000525 ETH</span></pre>
+
+    <h3 id="native-chainid">eth_chainId — 查网络 ID（防重放）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">4</span>,                       <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_chainId"</span>,       <span class="c">// 查当前连接的是哪个网络</span>
+  <span class="k">"params"</span>: []                   <span class="c">// 无参数</span>
+}
+<span class="c">// 响应 result: "0xaa36a7"  —— hex 转 10 进制 = 11155111 = Sepolia</span>
+<span class="c">// 常见值：主网 1（0x1）、BSC 56（0x38）、Sepolia 11155111（0xaa36a7）</span>
+<span class="c">// 作用：签名时 chainId 烧进签名里，别的网络上这笔交易无法重放</span></pre>
+
+    <h3 id="native-estimategas">eth_estimateGas — 预估 gas 上限</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">5</span>,                       <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_estimateGas"</span>,   <span class="c">// 模拟执行一笔交易，返回它会消耗多少 gas（免费、不上链）</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 1 个参数：模拟的交易对象（字段与真交易相同，可不带签名）</span>
+    {
+      <span class="k">"from"</span>: <span class="s">"0x1492bb948655f48d970B0459ADdb6D965545fD60"</span>,  <span class="c">// 谁发（影响授权检查等模拟逻辑）</span>
+      <span class="k">"to"</span>: <span class="s">"0x4ed7c70f96b97c1cb7834d7e3c1f0bdc49029551"</span>,    <span class="c">// 目标地址（合约或个人）</span>
+      <span class="k">"value"</span>: <span class="s">"0xde0b6b3a7640000"</span>,                          <span class="c">// 随交易发的原生币 = 1 ETH（wei/hex）</span>
+      <span class="k">"data"</span>: <span class="s">"0x"</span>                                          <span class="c">// calldata；普通转账就是 "0x"（空）；合约调用放这里</span>
+      <span class="c">// 也可加 "gas"、"gasPrice" 限定模拟条件，一般省略</span>
+    }
+  ]
+}
+<span class="c">// 响应 result: "0x5208"  —— hex 转 10 进制 = 21000 = 普通转账的标准 gas；合约调用更高</span>
+<span class="c">// 用途：真发交易时把这个值填进 gasLimit（没用完退回）；模拟失败会直接报错（如余额不足、未授权）</span></pre>
+
+    <h3 id="native-send">eth_sendRawTransaction — 发已签名交易（唯一写链入口）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">6</span>,                       <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_sendRawTransaction"</span>,  <span class="c">// 把已签名的交易广播上链（节点看不到明文，只看到签名结果）</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 1 个参数：</span>
+    <span class="s">"0x02f8b4018284b0470e8459682f0082520894..."</span>  <span class="c">// RLP 编码 + 签名后的完整交易 hex（原生层签好才发）</span>
+  ]
+}
+<span class="c">// 签名前交易的明文字段（签名后全部揉进上面那串 hex，不再可读）：</span>
+// {
+//   "nonce":     "0x7",                <span class="c">// 排队号（getTransactionCount "pending" 拿到的）</span>
+//   "gasPrice":  "0x9502f900",         <span class="c">// 每单位 gas 出价（eth_gasPrice 拿到的）</span>
+//   "gasLimit":  "0x5208",             <span class="c">// gas 上限（estimateGas 预估，没用完退回）</span>
+//   "to":        "0x4ed7...9551",      <span class="c">// 收款地址（合约调用时 = 合约地址）</span>
+//   "value":     "0xde0b6b3a7640000",  <span class="c">// 随交易发的原生币 = 1 ETH；不转账时 "0x0"</span>
+//   "data":      "0x",                 <span class="c">// calldata；纯转账为空，合约调用放这里</span>
+//   "chainId":   11155111              <span class="c">// 网络 ID，烧进签名防重放</span>
+// }
+<span class="c">// ── 签名后 raw hex 的真实结构 = RLP 列表，按顺序编码 10 个字段：</span>
+// [ nonce, gasPrice, gasLimit, to, value, data, chainId, v, r, s ]
+//   ├─ 前 7 个就是上面的明文（每项转成最小 hex 编码，空 data 是空串）
+//   └─ 后 3 个是签名的产物：
+//      r, s —— secp256k1 椭圆曲线签名的两个分量（各 32 字节，合计 65 字节）
+//      v    —— 恢复标识 = recoveryId + chainId × 2 + 35（EIP-155）
+//              Sepolia 例：0 + 11155111 × 2 + 35 = 22310257 = 0x1546d71（另一个值 22310258）
+<span class="c">// 关键点：交易明文里没有 from 字段 —— 节点拿 v/r/s 和交易内容做椭圆曲线反推，</span>
+<span class="c">// 从签名中恢复出签发地址。"谁发的"不是声明出来的，是密码学证明出来的，</span>
+<span class="c">// 所以私钥不进 JS 也能安全签名：原生层拿到 v/r/s 拼 RLP，全程不需要把私钥交出去。</span>
+<span class="c">// 项目里 Trust Wallet Core（AnySigner.sign）做的就是：拼 RLP → keccak256 → 签名 → 编出 raw hex</span>
+<span class="c">// 响应 result: "0x8e7a...a1c2"  —— 交易哈希（此时交易刚进 mempool，还没上链）</span>
+<span class="c">// 拿这个哈希去 eth_getTransactionReceipt 轮询，直到拿到回执才知道成败</span></pre>
+
+    <h3 id="native-receipt">eth_getTransactionReceipt — 查交易回执</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">7</span>,                       <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_getTransactionReceipt"</span>,  <span class="c">// 查交易的最终执行结果</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 1 个参数：</span>
+    <span class="s">"0x8e7a1f6c...a1c2"</span>          <span class="c">// sendRawTransaction 返回的交易哈希</span>
+  ]
+}
+<span class="c">// 响应（交易还在 mempool 时 result 为 null —— 项目里轮询直到非 null）</span>
+{
+  <span class="k">"result"</span>: {
+    <span class="k">"status"</span>: <span class="s">"0x1"</span>,             <span class="c">// 0x1 成功 / 0x0 失败（失败不退已耗 gas）</span>
+    <span class="k">"transactionHash"</span>: <span class="s">"0x8e7a...a1c2"</span>,  <span class="c">// 交易哈希（原样）</span>
+    <span class="k">"blockNumber"</span>: <span class="s">"0x64a3b"</span>,    <span class="c">// 打包进的区块号（hex）</span>
+    <span class="k">"gasUsed"</span>: <span class="s">"0x5208"</span>,         <span class="c">// 实际消耗；gasUsed × gasPrice = 真实手续费（未用完的 gasLimit 不计费）</span>
+    <span class="k">"logs"</span>: []                   <span class="c">// 事件日志数组；合约执行产生的事件（Transfer、Swap 等）都在这里</span>
+  }
+}</pre>
+  </section>
+
+  <!-- ============ 二、代币 ============ -->
+  <section id="token">
+    <h2>二、代币方法（ERC20）</h2>
+    <p class="desc">ERC20 没有独立 RPC，全部通过 <span class="c">eth_call</span>（读）/ <span class="c">eth_sendRawTransaction</span>（写）携带 calldata 实现。calldata = 4 字节函数选择器 + 参数按 32 字节对齐：地址左补 24 个 0，数值左补 0 到 32 字节。</p>
+
+    <h3 id="token-balanceOf">balanceOf(address) — 查代币余额（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">11</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用：模拟执行合约、不花钱、不上链、不用签名</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {                            <span class="c">// ── 参数1：调用对象（发给谁、执行什么）</span>
+      <span class="k">"to"</span>: <span class="s">"0xaA8E23Fb1079EA22e0C0e5f5c699a064499F7C25"</span>,  <span class="c">// 目标合约地址 = 代币合约（不是钱包地址！）</span>
+      <span class="k">"data"</span>: <span class="s">"0x70a08231"</span>       <span class="c">// calldata 前段：balanceOf(address) 的 4 字节函数选择器</span>
+              <span class="s">+ "0000000000000000000000001492bb948655f48d970B0459ADdb6D965545fD60"</span>
+                                 <span class="c">// calldata 后段：唯一参数 = 查谁的余额，地址左补 24 个 0 凑满 32 字节</span>
+      <span class="c">// "from" / "value" 可选字段一般省略</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// ── 参数2：在哪个区块的状态上执行（latest 最新已确认块）</span>
+  ]
+}
+<span class="c">// 响应 result: "0x0000...5f5e100"  —— 一个 32 字节 word</span>
+<span class="c">// hex 转 10 进制 = 100000000；USDT 是 6 位小数 → ÷ 10^6 = 100 USDT（不是 ÷ 10^18）</span></pre>
+
+    <h3 id="token-decimals">decimals() — 查精度（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本，固定 2.0</span>
+  <span class="k">"id"</span>: <span class="n">12</span>,                      <span class="c">// 请求序号，响应原样带回，用于配对响应和请求</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用：模拟执行合约、不花钱、不上链、不用签名</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {                            <span class="c">// ── 参数1：调用对象（发给谁、执行什么）</span>
+      <span class="k">"to"</span>: <span class="s">"0xaA8E...7C25"</span>,      <span class="c">// 目标合约地址，这里 = 代币合约（不是钱包地址！）</span>
+      <span class="k">"data"</span>: <span class="s">"0x313ce567"</span>,      <span class="c">// calldata：前 4 字节 = decimals() 的函数选择器</span>
+                                 <span class="c">// 无参数函数后面什么都不跟；有参数就按 32 字节对齐接在后面</span>
+      <span class="c">// "from": "0x1492..."     // 可选字段：以谁的身份模拟（查 msg.sender 相关逻辑才需要）</span>
+      <span class="c">// "value": "0x0"          // 可选字段：模拟时随附的原生币（decimals 用不到）</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// ── 参数2：在哪个区块的状态上执行</span>
+                                 <span class="c">// "latest" 最新已确认块 / "pending" 含未打包交易 / "0x64a3b" 指定块号</span>
+  ]
+}
+<span class="c">// 响应 result: "0x6"  —— 一个 32 字节 word，hex 转十进制才是真值：</span>
+<span class="c">// parseInt("6", 16) = 6 → USDT/USDC 是 6 位小数；多数代币返回 "0x12" = 18 位</span></pre>
+
+    <h3 id="token-symbol">symbol() — 查代币符号（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">13</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {
+      <span class="k">"to"</span>: <span class="s">"0xaA8E...7C25"</span>,      <span class="c">// 目标合约 = 代币合约地址</span>
+      <span class="k">"data"</span>: <span class="s">"0x95d89b41"</span>       <span class="c">// calldata：symbol() 的选择器，无参数</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// 执行区块</span>
+  ]
+}
+<span class="c">// 响应是动态类型（string），3 个 word：</span>
+// word1: 0x...0020      // 偏移 0x20：数据部分从第 32 字节后开始（动态类型的固定头）
+// word2: 0x...0004      // 字符串长度 = 4 个字节
+// word3: 0x55534454...  // 内容按 UTF-8 字节："USDT"（55='U' 53='S' 44='D' 54='T'），右侧补 0 凑满 32 字节</pre>
+
+    <h3 id="token-allowance">allowance(address,address) — 查授权额度（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">14</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {
+      <span class="k">"to"</span>: <span class="s">"0xaA8E...7C25"</span>,      <span class="c">// 目标合约 = 代币合约地址</span>
+      <span class="k">"data"</span>: <span class="s">"0xdd62ed3e"</span>       <span class="c">// calldata 前段：allowance(address,address) 的选择器</span>
+              <span class="s">+ "0000...1492bb...fD60"</span>  <span class="c">// 参数1 = owner（钱的主人）</span>
+              <span class="s">+ "0000...10ED43...24E5"</span>  <span class="c">// 参数2 = spender（被授权的合约，如 Router）</span>
+                                 <span class="c">// 两个地址各左补 24 个 0 凑满 32 字节</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// 执行区块</span>
+  ]
+}
+<span class="c">// 响应 result: "0x0"  —— 0 = 还没授权过，Router 动不了你的代币</span>
+<span class="c">// 非 0 = 上次 approve 留下的剩余额度（最小单位整数）</span></pre>
+
+    <h3 id="token-approve">approve(address,uint256) — 授权（写，要签名 + gas）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">15</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_sendRawTransaction"</span>,  <span class="c">// 写操作：发已签名交易（签名前还要过生物识别）</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 1 个参数：</span>
+    <span class="s">"0x..."</span>                     <span class="c">// 原生层签名后的完整交易 hex；明文字段构造如下：</span>
+  ]
+}
+<span class="c">// 交易明文：</span>
+// "to":        "0xaA8E...7C25",  <span class="c">// 目标 = 代币合约（不是 Router！approve 是发给代币合约的）</span>
+// "value":     "0x0",            <span class="c">// 不带原生币</span>
+// "data": "095ea7b3"             <span class="c">// calldata 前段：approve(address,uint256) 的选择器</span>
+//        + "0000...10ED43C7...24E5"  <span class="c">// 参数1 = spender（被授权的合约，如 Router）</span>
+//        + "0000...05f5e100"     <span class="c">// 参数2 = amount = 100000000 = 100 USDT（6 位小数）</span>
+// "nonce"/"gasPrice"/"gasLimit"/"chainId"  <span class="c">// 签名时照常填（getTransactionCount / gasPrice / estimateGas / chainId）</span>
+<span class="c">// 效果：spender 之后可以从你地址 transferFrom 最多 100 USDT（额度可累积）</span>
+<span class="c">// （签名后 raw hex 的内部结构 [.. v, r, s] 见上面 eth_sendRawTransaction 一节，所有写交易相同）</span></pre>
+
+    <h3 id="token-transfer">transfer(address,uint256) — 代币转账（写）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">16</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_sendRawTransaction"</span>,  <span class="c">// 写操作：发已签名交易</span>
+  <span class="k">"params"</span>: [ <span class="s">"0x..."</span> ]          <span class="c">// 签名后的完整交易 hex；明文字段构造如下：</span>
+}
+<span class="c">// 交易明文：</span>
+// "to":        "0xaA8E...7C25",  <span class="c">// 目标 = 代币合约地址（注意不是收款人地址！收款人在 data 里）</span>
+// "value":     "0x0",            <span class="c">// 代币转账不带原生币（原生币转账才用 value）</span>
+// "data": "a9059cbb"             <span class="c">// calldata 前段：transfer(address,uint256) 的选择器</span>
+//        + "0000...4ed7c70f...9551"  <span class="c">// 参数1 = 收款地址</span>
+//        + "0000...05f5e100"     <span class="c">// 参数2 = 金额 = 100000000 = 100 USDT（6 位小数）</span>
+<span class="c">// 交易费：gas 由代币转账逻辑消耗（约 6 万 gas），与转账金额大小无关</span></pre>
+  </section>
+
+  <!-- ============ 三、合约调用 ============ -->
+  <section id="dex">
+    <h2>三、合约调用方法（DeFi）</h2>
+    <p class="desc">读走 <span class="c">eth_call</span>，写走 <span class="c">eth_sendRawTransaction</span>。这里列项目用到的 DEX（Uniswap V2 兼容）和 Aave 的典型调用。数组参数比普通参数多一层头：偏移 0x20 + 长度。</p>
+
+    <h3 id="dex-getpair">Factory.getPair — 查交易对地址（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">21</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {
+      <span class="k">"to"</span>: <span class="s">"0xFactory合约地址"</span>,  <span class="c">// 目标 = Factory 合约（管所有池子的登记处，不是 Router）</span>
+      <span class="k">"data"</span>: <span class="s">"0xe6a43905"</span>       <span class="c">// calldata 前段：getPair(address,address) 的选择器</span>
+              <span class="s">+ "0000...WETH地址"</span>  <span class="c">// 参数1 = tokenA（左补 0 到 32 字节）</span>
+              <span class="s">+ "0000...USDT地址"</span>  <span class="c">// 参数2 = tokenB</span>
+                                 <span class="c">// 传参顺序不影响结果（合约内部会排序）</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// 执行区块</span>
+  ]
+}
+<span class="c">// 响应 result 是一个 word，右取 20 字节才是地址：</span>
+// "0x0000...9ed3...4c1a"  → pair 合约地址（池子的门牌号）
+// "0x0000...0000"（全 0）  → 没有这个交易对（不是报错！项目里用 BigInt(pair) === 0n 判断）</pre>
+
+    <h3 id="dex-getreserves">Pair.getReserves — 查池子储备（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">22</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {
+      <span class="k">"to"</span>: <span class="s">"0x9ed3...4c1a"</span>,      <span class="c">// 目标 = pair 合约地址（getPair 查出来的门牌号）</span>
+      <span class="k">"data"</span>: <span class="s">"0x0902f1ac"</span>       <span class="c">// calldata：getReserves() 的选择器，无参数</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// 执行区块</span>
+  ]
+}
+<span class="c">// 响应 3 个 32 字节 word（固定顺序）：</span>
+// word1: 0x...0439b0   → reserve0 = 300867216000000（token0 的储备，按 token0 的 decimals 翻译：USDT 6 位 → 300.867216）
+// word2: 0x...0e3af2   → reserve1 = 76221000000000000（token1 的储备，ETH 18 位 → 0.076221）
+// word3: 0x...8f2a1c   → blockTimestampLast（最近一次交易的时间戳，一般不用）
+<span class="c">// 注意：reserve0/reserve1 对应 token0/token1 的地址排序，不是 USDT/ETH 的展示顺序</span></pre>
+
+    <h3 id="dex-getamountsout">Router.getAmountsOut — 链上报价（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">23</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用（真实报价含 0.25% 手续费和滑点影响）</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {
+      <span class="k">"to"</span>: <span class="s">"0xRouter合约地址"</span>,   <span class="c">// 目标 = Router 合约（用户交易的入口）</span>
+      <span class="k">"data"</span>: <span class="s">"0xd06ca61f"</span>       <span class="c">// calldata 前段：getAmountsOut(uint256,address[]) 的选择器</span>
+              <span class="s">+ "0000...16345785d8a0000"</span>  <span class="c">// 参数1 = amountIn = 1e17 = 0.1 ETH</span>
+              <span class="s">+ "0000...0020"</span>     <span class="c">// 参数2头 = 数组偏移 0x20（数据从第 32 字节后开始）</span>
+              <span class="s">+ "0000...0002"</span>     <span class="c">// 数组长度 = 2</span>
+              <span class="s">+ "0000...WETH地址"</span> <span class="c">// path[0] = 卖出的代币</span>
+              <span class="s">+ "0000...USDT地址"</span> <span class="c">// path[1] = 买入的代币</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// 执行区块</span>
+  ]
+}
+<span class="c">// 响应：动态数组 = [偏移, 长度, 元素...]，前两个 word 跳过，后面的对应 path 每个节点：</span>
+// word3: 0x...16345785d8a0000    // path[0] 的输出 = 输入原样 1e17
+// word4: 0x...17882b80           // path[1] 的输出 = 394800000 = 394.8 USDT（已扣手续费）
+<span class="c">// 项目里 decodeWords().slice(2) 就是跳过前两个头 word</span></pre>
+
+    <h3 id="aave-getuserdata">Aave.getUserAccountData — 账户健康数据（读）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">24</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_call"</span>,          <span class="c">// 只读调用</span>
+  <span class="k">"params"</span>: [                    <span class="c">// 固定 2 个参数：</span>
+    {
+      <span class="k">"to"</span>: <span class="s">"0xAavePool合约地址"</span>, <span class="c">// 目标 = Aave Pool 合约</span>
+      <span class="k">"data"</span>: <span class="s">"0xbf25e701"</span>       <span class="c">// calldata 前段：getUserAccountData(address) 的选择器</span>
+              <span class="s">+ "0000...1492bb...fD60"</span>  <span class="c">// 参数 = 查谁的账户</span>
+    },
+    <span class="s">"latest"</span>                     <span class="c">// 执行区块</span>
+  ]
+}
+<span class="c">// 响应 6 个 word，按固定顺序（USD 价都是 8 位小数）：</span>
+// [0] totalCollateralBase        抵押总值（例 1974000000 = $19.74）
+// [1] totalDebtBase              债务总值
+// [2] availableBorrowsBase       还能借多少（USD）
+// [3] currentLiquidationThreshold 清算阈值（万分比，8500 = 85%）
+// [4] ltv                        最大抵押率（万分比，8250 = 82.5%）
+// [5] healthFactor               健康因子（1e18 基准；债务为 0 时返回 0 → 前端显示 ∞）</pre>
+
+    <h3 id="aave-supply">Aave.supply — 存入抵押品（写，要签名 + gas）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">25</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_sendRawTransaction"</span>,  <span class="c">// 写操作：发已签名交易</span>
+  <span class="k">"params"</span>: [ <span class="s">"0x..."</span> ]          <span class="c">// 签名后的完整交易 hex；明文字段构造如下：</span>
+}
+<span class="c">// 交易明文：</span>
+// "to":        "0xAavePool合约地址",  <span class="c">// 目标 = Aave Pool 合约</span>
+// "value":     "0x0",            <span class="c">// 不带原生币（原生币要先 deposit 换 WETH 再 supply）</span>
+// "data": "617ba037"             <span class="c">// calldata 前段：supply(address,uint256,address,uint16) 的选择器</span>
+//        + "0000...aA8E...7C25"  <span class="c">// 参数1 = asset（存什么：USDT 合约地址）</span>
+//        + "0000...03dfd240"     <span class="c">// 参数2 = amount = 65000000 = 65 USDT（6 位小数）</span>
+//        + "0000...1492bb...fD60" <span class="c">// 参数3 = onBehalfOf（记到谁名下 = 自己）</span>
+//        + "0000...0000"         <span class="c">// 参数4 = referralCode = 0（推荐码）</span>
+<span class="c">// 前提：先 approve Pool 合约动你的 USDT；存入后拿到 aToken 凭证（存款会产生利息）</span></pre>
+
+    <h3 id="dex-swapeth">Router.swapExactETHForTokens — 原生币换代币（写）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">26</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_sendRawTransaction"</span>,  <span class="c">// 写操作：发已签名交易</span>
+  <span class="k">"params"</span>: [ <span class="s">"0x..."</span> ]          <span class="c">// 签名后的完整交易 hex；明文字段构造如下：</span>
+}
+<span class="c">// 交易明文：</span>
+// "to":        "0xRouter合约地址",  <span class="c">// 目标 = Router 合约</span>
+// "value":     "0x...16345785d8a0000",  <span class="c">// = 0.1 ETH：卖出的原生币放 value，不在 data 里！</span>
+// "data": "7ff36ab5"             <span class="c">// calldata 前段：swapExactETHForTokens(uint256,address[],address,uint256) 选择器</span>
+//        + "0000...175cf050"     <span class="c">// 参数1 = amountOutMin = 391966800 = 391.9668 USDT（报价打 0.5% 滑点）</span>
+//        + "0000...0020  0000...0002"  <span class="c">// 参数2 = path 数组（偏移 + 长度 2）</span>
+//        + "0000...WETH地址  0000...USDT地址"  <span class="c">// path = [WETH, USDT]（卖什么 → 买什么）</span>
+//        + "0000...1492bb...fD60" <span class="c">// 参数3 = to = 收币地址</span>
+//        + "0000...68e92100"     <span class="c">// 参数4 = deadline（unix 秒示例值，超时链上拒执行）</span>
+<span class="c">// 卖原生币不用 approve（ETH 随 value 直接给 Router）；卖代币要先 approve Router</span></pre>
+
+    <h3 id="dex-addliq">Router.addLiquidityETH — 加流动性（写）</h3>
+<pre>{
+  <span class="k">"jsonrpc"</span>: <span class="s">"2.0"</span>,              <span class="c">// 协议版本</span>
+  <span class="k">"id"</span>: <span class="n">27</span>,                      <span class="c">// 请求序号</span>
+  <span class="k">"method"</span>: <span class="s">"eth_sendRawTransaction"</span>,  <span class="c">// 写操作：发已签名交易</span>
+  <span class="k">"params"</span>: [ <span class="s">"0x..."</span> ]          <span class="c">// 签名后的完整交易 hex；明文字段构造如下：</span>
+}
+<span class="c">// 交易明文：</span>
+// "to":        "0xRouter合约地址",  <span class="c">// 目标 = Router 合约</span>
+// "value":     "0x...b1a2bc2ec50000",  <span class="c">// = 0.05 ETH 全额随交易发（ETH 侧数量放这里）</span>
+// "data": "f305d719"             <span class="c">// calldata 前段：addLiquidityETH(address,uint256,uint256,uint256,address,uint256) 选择器</span>
+//        + "0000...USDT地址"     <span class="c">// 参数1 = token = 代币侧地址</span>
+//        + "0000...0bc415c0"     <span class="c">// 参数2 = amountTokenDesired = 197400000 = 197.4 USDT（想要的上限）</span>
+//        + "0000...0bb50648"     <span class="c">// 参数3 = amountTokenMin = 196413000 = 196.413 USDT（打 0.5% 滑点的底线）</span>
+//        + "0000...b0bf5c85936000" <span class="c">// 参数4 = amountETHMin = 49750000000000000 = 0.04975 ETH（ETH 侧底线）</span>
+//        + "0000...1492bb...fD60" <span class="c">// 参数5 = to = LP 凭证接收地址</span>
+//        + "0000...68e92100"     <span class="c">// 参数6 = deadline（unix 秒示例值）</span>
+<span class="c">// 0.05 ETH（value）Router 内部先 WETH.deposit 换成 WETH 再进池子，不用自己 wrap</span>
+// 前提：approve Router 动 USDT；ETH 侧随 value 发不用授权</pre>
+  </section>
+
+  <section id="write-compare">
+    <h2>四、读写参数对比（原生币 / ERC20 / 合约）</h2>
+    <p class="desc">三种写操作走的是同一个 RPC <span class="c">eth_sendRawTransaction</span>，唯一区别就是明文里 <span class="c">to</span> / <span class="c">value</span> / <span class="c">data</span> 三个字段的填法。签名外壳（nonce/gasPrice/gasLimit/chainId）完全相同。</p>
+
+    <table>
+      <tr><th>字段</th><th>① 发送原生币</th><th>② ERC20 transfer / approve</th><th>③ 合约写方法（swap / supply / 加流动性）</th></tr>
+      <tr><td><b>to</b></td><td>收款人地址（个人钱包）</td><td><b>代币合约地址</b>（不是收款人！）</td><td><b>业务合约地址</b>（Router / Aave Pool）</td></tr>
+      <tr><td><b>value</b></td><td><b>= 转账金额</b>（1 ETH → 0xde0b6b3a7640000）</td><td>恒为 "0x0"</td><td>有原生币参与时 = 原生侧金额（swap 卖出量、加流动性 ETH 侧）；否则 "0x0"</td></tr>
+      <tr><td><b>data</b></td><td><b>"0x" 空串</b>（无合约逻辑）</td><td>selector + 参数：收款人、金额都在这里</td><td>selector + 参数：最复杂，可能含数组（path）多层头</td></tr>
+      <tr><td>真正的动作在哪</td><td>外层 to/value 本身</td><td>外层只是门牌，动作全在 data</td><td>部分在 value（原生侧），其余在 data</td></tr>
+      <tr><td>approve 前置</td><td>不需要</td><td>transfer 不需要（approve 自己就是授权）</td><td>涉及代币侧就需要：先 approve Router/Pool 动你的代币</td></tr>
+      <tr><td>gas 量级</td><td>21000（固定）</td><td>约 5–6 万</td><td>几十万（swap ~15 万、加流动性 ~30 万）</td></tr>
+    </table>
+
+    <h3>通用参数（三种写交易完全相同）</h3>
+    <table>
+      <tr><th>字段</th><th>填什么</th><th>来源</th><th>注意</th></tr>
+      <tr><td><b>nonce</b></td><td>该账号已发交易数（hex）</td><td>eth_getTransactionCount(addr, "pending")</td><td>用 "pending" 防 mempool 里未打包交易导致 nonce 撞车；填错交易会被卡住或拒收</td></tr>
+      <tr><td><b>gasPrice</b></td><td>每单位 gas 出价（wei/hex）</td><td>eth_gasPrice（可适当上浮 10% 加速打包）</td><td>实际手续费 = gasUsed × gasPrice，gasLimit 没用完的部分不计费</td></tr>
+      <tr><td><b>gasLimit</b></td><td>gas 上限（hex）</td><td>eth_estimateGas（模拟预估值）</td><td>给少 → 交易 revert 且 gas 照扣；给多 → 只按实际 gasUsed 收费，多余不用白不用</td></tr>
+      <tr><td><b>chainId</b></td><td>网络 ID（如 Sepolia 11155111）</td><td>eth_chainId</td><td>烧进签名防重放：别的网络上这笔交易无效</td></tr>
+      <tr><td><b>from</b></td><td><b>不在明文里</b></td><td>—（从 v/r/s 签名反推恢复）</td><td>谁发的不是声明出来的，是密码学证明出来的；原生层签名也因此不需要私钥进 JS</td></tr>
+      <tr><td><b>签名</b></td><td>v, r, s 追加在 RLP 尾部</td><td>原生层（Trust Wallet Core AnySigner.sign）</td><td>JS 层只传地址引用 + 明文参数，签名全程在原生侧完成</td></tr>
+    </table>
+
+    <h3>同一笔交易的三个版本（对照看）</h3>
+<pre>① 转 1 ETH 给朋友            ② 转 100 USDT 给朋友         ③ swap 0.1 ETH → USDT
+to:    0x4ed7...9551（朋友）  to:    USDT 合约             to:    Router 合约
+value: 1 ETH                  value:  0x0                  value:  0.1 ETH ← 卖出量在这！
+data:  0x                     data:   a9059cbb             data:   7ff36ab5
+                                  + 朋友地址（32 字节）          + amountOutMin（滑点底线）
+                                  + 100000000（32 字节）        + path 数组（WETH, USDT）
+                                                               + 收币地址
+                                                               + deadline
+
+── 三种都相同的通用参数（签名外壳）────────────────────────────
+nonce:     0x7                 <span class="c">// 排队号，getTransactionCount(addr, "pending") 拿到</span>
+gasPrice:  0x9502f900          <span class="c">// ≈ 2.5 gwei，eth_gasPrice 拿到（可上浮 10% 加速）</span>
+gasLimit:  0x5208 / 预估值     <span class="c">// estimateGas：① 21000 固定  ② 约 5 万  ③ 几十万</span>
+chainId:   11155111            <span class="c">// eth_chainId，烧进签名防重放</span>
+签名:      v, r, s             <span class="c">// 原生层 AnySigner.sign 追加在 RLP 尾部；from 不在明文，由签名反推</span>
+<span class="c">// 三列只有 to / value / data 不同，下面五行照抄 → 签名 → eth_sendRawTransaction</span></pre>
+
+    <h3>三条判断口诀</h3>
+    <table>
+      <tr><th>#</th><th>口诀</th></tr>
+      <tr><td>1</td><td><span class="c">to</span> 永远是"代码在哪"（合约）或"钱直接给谁"（原生转账），永远不是代币收款人</td></tr>
+      <tr><td>2</td><td><span class="c">value</span> 只在<b>原生币真的要移动</b>时非 0 —— 原生转账是全部金额，合约调用是"随交易捎带的原生侧数量"</td></tr>
+      <tr><td>3</td><td><span class="c">data</span> 为空 = 纯转账；有 data = 调合约，前 4 字节 selector 决定干什么</td></tr>
+    </table>
+
+    <h3>读的对比（原生币 / ERC20 / 合约）</h3>
+    <p class="desc">根本区别：原生币数据存在<b>账户对象</b>里（节点直接记账），有专用 RPC 直接查；代币和合约的数据存在<b>合约 storage</b> 里，必须用 eth_call 执行合约代码才能取出来。</p>
+    <table>
+      <tr><th>维度</th><th>① 原生币读</th><th>② ERC20 代币读</th><th>③ 合约读（DeFi）</th></tr>
+      <tr><td><b>RPC 方法</b></td><td>专用方法：eth_getBalance、eth_getTransactionCount 等</td><td>统一走 eth_call</td><td>统一走 eth_call</td></tr>
+      <tr><td><b>to</b></td><td>无此概念（地址放 params[0]）</td><td>代币合约地址</td><td>业务合约地址（Router / Pair / Pool）</td></tr>
+      <tr><td><b>data</b></td><td>无此概念</td><td>selector + 简单参数（1–2 个地址/数值）</td><td>selector + 参数，可能含数组（path）多层头</td></tr>
+      <tr><td><b>params 结构</b></td><td>[地址, 区块标识] 或 [交易哈希]</td><td>[调用对象, "latest"]</td><td>[调用对象, "latest"]（结构完全同 ②）</td></tr>
+      <tr><td><b>响应形态</b></td><td>1 个 word（余额、nonce 都是单值）</td><td>1 个 word；动态类型（symbol）是 3 个 word</td><td>1–6 个 word；动态数组多一层 偏移+长度 头</td></tr>
+      <tr><td><b>翻译要领</b></td><td>hex → 10 进制即结果（余额再 ÷ 10^18）</td><td>按该代币 decimals 翻译（USDT 6 位 ≠ 18 位）</td><td>按位置对号入座：reserve0/1 对应 token0/token1；USD 价固定 8 位小数</td></tr>
+      <tr><td><b>典型例子</b></td><td>eth_getBalance → 2 ETH</td><td>balanceOf → 100 USDT、allowance → 授权额度</td><td>getReserves → 池子储备、getAmountsOut → 报价、getUserAccountData → 健康因子</td></tr>
+      <tr><td><b>签名 / gas</b></td><td colspan="3">三种全部相同：免费、不用签名、不上链（读永远不会花钱）</td></tr>
+    </table>
+    <h3>同一笔读操作的三个版本（对照看）</h3>
+<pre>① 查 ETH 余额                ② 查 100 USDT 余额           ③ 报价 0.1 ETH → USDT
+method: eth_getBalance       method: eth_call             method: eth_call
+                             （专用方法，没有 data）       （合约数据必须执行代码取）
+params[0]: 朋友地址           params[0]: {                 params[0]: {
+                              to:   USDT 合约              to:   Router 合约
+                              data: 70a08231               data: d06ca61f
+                                + 查询地址（32 字节）          + 0000...16345785d8a0000（0.1 ETH）
+                              }                              + 0000...0020  0000...0002（数组头）
+params[1]: "latest"          }                            + 0000...WETH地址
+                             params[1]: "latest"          + 0000...USDT地址 }
+                             ─────────────────────────    params[1]: "latest"
+响应: 1 个 word
+"0x1bc16d674ec80000"         响应: 1 个 word               响应: 4 个 word（动态数组）
+→ 10 进制 ÷ 10^18 = 2 ETH    "0x0000...5f5e100"           [偏移, 长度, 输入原样, 输出]
+                             → ÷ 10^6 = 100 USDT          → 跳过前 2 个头 word
+                                                          → 394800000 = 394.8 USDT
+                                                          （项目里 decodeWords().slice(2)）
+
+── 三种都相同的一点 ──────────────────────────────────────
+<span class="c">// 免费、不用签名、不上链、不消耗 gas（读永远不会花钱）</span>
+<span class="c">// 唯一的"参数"就是 eth_call 的 [调用对象, 区块]；原生币连这个都没有</span></pre>
+
+    <p class="desc">一句话：② 和 ③ 的读调用结构一模一样（eth_call + calldata），区别只在 data 的复杂度；① 是唯一有专用读方法的一类 —— 因为它的数据不在合约里，在账户对象上。</p>
+  </section>
+
+  <section id="rules">
+    <h2>附：通用规则速查</h2>
+    <table>
+      <tr><th>规则</th><th>说明</th></tr>
+      <tr><td>读 = eth_call</td><td>不花钱、不签名、不上链；params = [调用对象, 区块]</td></tr>
+      <tr><td>写 = eth_sendRawTransaction</td><td>花 gas、要签名、改变链上状态；params = [签名后的完整交易 hex]</td></tr>
+      <tr><td>calldata 组成</td><td>4 字节选择器 + 参数各按 32 字节对齐（动态类型多一层 偏移 + 长度 头）</td></tr>
+      <tr><td>金额单位</td><td>一律最小单位整数：ETH 18 位、USDT/USDC 6 位、LP 凭证 9 位、Aave USD 价 8 位</td></tr>
+      <tr><td>数值编码</td><td>RPC 里全部 0x 前缀 16 进制；签名内部用十进制字符串（项目 normalizeEthereumParams 统一转）</td></tr>
+      <tr><td>地址编码</td><td>20 字节左补 24 个 0 凑满 32 字节；返回时右取 20 字节</td></tr>
+      <tr><td>签名前置检查</td><td>nonce（getTransactionCount pending）→ gasPrice → gasLimit（estimateGas）→ chainId</td></tr>
+      <tr><td>结果确认</td><td>轮询 eth_getTransactionReceipt 看 status == 0x1，gasUsed × gasPrice 才是真实手续费</td></tr>
+    </table>
+  </section>
+</main>
+
+</div>
+<script>
+  // 左侧目录随滚动高亮当前小节
+  const links = [...document.querySelectorAll('aside a')];
+  const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll', () => {
+    let cur = -1;
+    secs.forEach((s, i) => { if (s.getBoundingClientRect().top < 120) cur = i; });
+    links.forEach((a, i) => {
+      a.style.borderLeftColor = i === cur ? '#3b5bdb' : 'transparent';
+      a.style.color = i === cur ? '#3b5bdb' : '#555';
+      a.style.fontWeight = i === cur ? '600' : '400';
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>

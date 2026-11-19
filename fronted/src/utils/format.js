@@ -88,11 +88,6 @@ export function hexToDecimal(hex) {
   return BigInt(hex).toString(10);
 }
 
-/** 金额转 hex（带 0x，交易参数用） */
-export function decimalToHex(decimal) {
-  return '0x' + BigInt(decimal).toString(16);
-}
-
 // ---------- 行情数字格式（对齐参考项目 Extensions/Double.swift） ----------
 
 /** 货币：$1,234.56（默认 2 位小数） */

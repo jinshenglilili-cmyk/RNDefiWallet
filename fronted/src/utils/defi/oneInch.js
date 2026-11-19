@@ -20,19 +20,12 @@ function bases() {
   ];
 }
 
-/** 可选：设置 1inch API Key（设置后自动带在 dev 域名的 Authorization 头里） */
-let apiKey = '';
-export function setOneInchApiKey(key) {
-  apiKey = key ?? '';
-}
-
 async function request(path, params) {
   const qs = new URLSearchParams(params).toString();
   let lastErr;
   for (const base of bases()) {
     try {
       const headers = { Accept: 'application/json' };
-      if (apiKey && base.includes('1inch.dev')) headers.Authorization = `Bearer ${apiKey}`;
       const response = await fetch(`${base}${path}?${qs}`, { headers });
       if (!response.ok) {
         lastErr = new Error(`1inch HTTP ${response.status}`);
