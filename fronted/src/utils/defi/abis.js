@@ -93,6 +93,19 @@ export const AAVE_POOL_ABI = [
   { type: 'function', name: 'withdraw', stateMutability: 'nonpayable',
     inputs: [{ name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' }, { name: 'to', type: 'address' }],
     outputs: [{ name: '', type: 'uint256' }] },
+  { type: 'function', name: 'borrow', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
+      { name: 'interestRateMode', type: 'uint256' }, { name: 'referralCode', type: 'uint16' },
+      { name: 'onBehalfOf', type: 'address' },
+    ],
+    outputs: [] },
+  { type: 'function', name: 'repay', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
+      { name: 'interestRateMode', type: 'uint256' }, { name: 'onBehalfOf', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }] },
 ];
 
 /** Aave V3 DataProvider：储备 aToken/债务代币地址查询 */

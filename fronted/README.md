@@ -7,6 +7,10 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)
 ![zustand](https://img.shields.io/badge/zustand-5-FA8420)
 
+<p align="center">
+  <img src="docs/demo.gif" width="320" alt="项目演示：借贷 Tab → 借款列表 → ETH 借款详情（Aave V3 · Sepolia）" />
+</p>
+
 ## 功能
 
 - **行情**：CoinGecko 加密货币行情列表、币种详情
@@ -14,8 +18,13 @@
   1inch 聚合器实验选项（BSC / Ethereum），滑点设置、原生币自动走 wrapped 路径
 - **LP**：V2 交易对的流动性池子列表、添加 / 移除流动性（按储备比例自动搭配原生币，
   按份额取回两种代币）
-- **借贷**：Aave V3 存币生息——账户总览（总抵押 / 总负债 / 健康因子）、资产存入 / 取回
-  （原生币自动 wrap / unwrap）
+- **借贷**：Aave V3——存入 / 借款两条线，页面拆分
+  - 存入：借贷 Tab 账户总览（总抵押 / 总负债 / 健康因子）+ 资产存入 / 取回
+    （原生币自动 wrap / unwrap）；详情页 [defi/lend/[symbol]](src/app/defi/lend/[symbol].tsx)
+  - 借款：借贷 Tab「借款」入口卡片 → 借款列表页 [defi/borrow](src/app/defi/borrow/index.tsx)
+    （可借额度 / 总负债 / 健康因子 + 可借资产）→ 借款详情页 [defi/borrow/[symbol]](src/app/defi/borrow/[symbol].tsx)：
+    借出（浮息，`Pool.borrow`，借入 wrapped 到账自动解包）/ 还款（wrap → approve → `Pool.repay`），
+    前端健康因子与可借额度双重校验，负债经 `variableDebtToken` 余额实时读取
 - **钱包**：
   - 创建 / 导入助记词钱包：助记词仅在创建时展示一次，不落盘；本地只保存派生出的账号私钥
   - 新增账号两种方式：导入私钥 / 助记词创建账号（随机生成或输入已有助记词，同样只存私钥）
@@ -66,7 +75,8 @@ RNDefiWallet/
         │   ├── (tabs)/        # 行情 / Swap / LP / 借贷 / 钱包 五个 Tab
         │   ├── auth/          # 登录 & 注册（模态）
         │   ├── browser/       # DApp 浏览器
-        │   ├── defi/          # DeFi 二级页：lp/[symbol]、lend/[symbol]
+        │   ├── defi/          # DeFi 二级页：lp/[symbol]、lend/[symbol]（存入/取回）、
+        │   │                  #   borrow/（借款列表）、borrow/[symbol]（借出/还款）
         │   ├── market/        # 币种详情
         │   ├── settings/      # 设置（语言 / DeFi 网络）
         │   ├── wallet/        # 创建/导入/新增账号/转账记录/签名
@@ -140,7 +150,7 @@ xcrun simctl openurl booted "com.hrbbcfc.client://expo-development-client/?url=<
 flowchart TB
     subgraph UI["UI 层（src/app，expo-router 路由）"]
         TABS["(tabs) Tab 容器<br/>行情 index / Swap / LP / 借贷 / 钱包"]
-        PAGES["二级页面<br/>defi/lp/[symbol] · defi/lend/[symbol]<br/>market/[id] · wallet/* · browser · settings · wc · auth(模态)"]
+        PAGES["二级页面<br/>defi/lp/[symbol] · defi/lend/[symbol] · defi/borrow（借款）<br/>market/[id] · wallet/* · browser · settings · wc · auth(模态)"]
     end
 
     subgraph STORE["Hook 层（src/hooks，zustand / React Hook）"]
@@ -153,7 +163,7 @@ flowchart TB
         WS["walletStore.js<br/>钱包本地存储（按登录账号隔离）"]
         DEFNI["hooks/useDefiNetwork.js<br/>网络选择 + 三网络配置（合约地址/代币清单）<br/>net() 调用时现场读取"]
         DEX["defi/pancake.js<br/>V2 DEX 报价/兑换/流动性"]
-        AAVE["defi/aave.js<br/>Aave V3 Pool/DataProvider/Oracle"]
+        AAVE["defi/aave.js<br/>Aave V3 Pool/DataProvider/Oracle<br/>getUserAccountData / reserveTokens /<br/>supply / withdraw / borrow / repay 编码"]
         OI["defi/oneInch.js<br/>1inch 聚合器（按链号拼 URL）"]
         RPCD["defi/bscRpc.js<br/>RPC 客户端（读 net().rpcUrl）"]
         TX["defi/txSender.js<br/>签名广播通用流程 + 签名确认"]
@@ -286,6 +296,12 @@ sequenceDiagram
   - [src/hooks/useWalletStore.js](src/hooks/useWalletStore.js) 持有这份对象的内存副本作为跨页面唯一数据源：所有增删改走 hook action（先更新内存 → 订阅组件同步刷新 → 整体写回存储）
   - 所有键按登录用户加命名空间前缀 `wallet.u<uid>.`，未登录落在隔离的 `wallet.none.` 空命名空间
   - 退出登录只是切换前缀，数据不搬家；重新登录原样恢复；旧版数据（归档键/分键/明文键）由 `migrateLegacyInto` 一次性收敛为单对象格式
+- **借贷数据模型（Aave V3）**：所有读操作都是「先查目录、再查个人」两段式——
+  `reserveTokens(asset)` 从 DataProvider 查该资产的记账代币地址（协议级，全网共用，不需要地址参数），
+  再对 `aToken.balanceOf(我)`（存款）/ `variableDebtToken.balanceOf(我)`（浮息债务，随区块计息增长）逐资产读余额；
+  账户级汇总（可借额度 / 健康因子）走 `getUserAccountData(我)` 一次返回（USD 8 位精度，跨资产折算）。
+  写操作四类（supply / withdraw / borrow / repay）均为 Pool 的 calldata 直连编码，
+  原生币一律先 wrap 成 wrapped 资产再进协议；未配置的储备返回零地址，用于过滤无效资产
 - **DeFi 网络抽象**：[src/hooks/useDefiNetwork.js](src/hooks/useDefiNetwork.js) 集中网络选择（zustand）与三份网络配置（合约地址 / 代币清单 / RPC），其余代码全部通过 `net()` 调用时读取——切换网络不散落任何 if/else
 - **签名通道**：[src/utils/defi/txSender.js](src/utils/defi/txSender.js) 复用 `modules/wallet` 原生签名（Trust Wallet Core），签名前弹确认（方法 / 金额 / gas），带固有 gas 下限与回执等待；签名只传地址引用，私钥全程在原生层
 - **HTTP 封装**：[src/utils/request.js](src/utils/request.js)，接口统一返回 `{status, message, data}`；401 自动跳登录

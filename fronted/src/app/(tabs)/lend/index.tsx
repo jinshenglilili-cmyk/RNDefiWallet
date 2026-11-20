@@ -28,7 +28,8 @@ const LEND_SYMBOLS = () => getTokens().filter((t) => !t.wrapped).map((t) => t.sy
  * - 账户总览：总抵押 / 总负债（USD）、健康因子（<1.2 红 / <1.5 橙 / 其余绿）
  * - 资产列表（合并「我的存款」与「存入资产」）：每行展示钱包余额，
  *   已有存款的资产右侧显示存款数量（≈USD 估值），点击 → push 详情页（/defi/lend/[symbol]）
- * - 借款暂未开放（只展示负债，不提供借款入口）
+ * - 借款入口：账户总览下方的「借款」卡片 → push 借款列表页（/defi/borrow）
+ *   借款详情已拆分到 /defi/borrow/[symbol]（借出 / 还款）
  */
 export default function LendTab() {
   const t = useTheme();
@@ -158,6 +159,20 @@ export default function LendTab() {
             </Text>
           )}
         </View>
+
+        {/* 借款入口 → /defi/borrow */}
+        <TouchableOpacity
+          style={styles.assetCard}
+          activeOpacity={0.7}
+          onPress={() => router.push('/defi/borrow')}
+        >
+          <Text style={{ fontSize: 22, marginRight: 12 }}>🏦</Text>
+          <View style={styles.depositInfo}>
+            <Text style={styles.depositSymbol}>{tt('defi.lend.borrowEntry')}</Text>
+            <Text style={styles.depositSub}>{tt('defi.lend.borrowEntryHint')}</Text>
+          </View>
+          <Text style={styles.depositHint}>›</Text>
+        </TouchableOpacity>
 
         {/* 资产列表：钱包余额 + 已有存款数量（原「我的存款」「存入资产」两个模块合并） */}
         <Text style={styles.sectionTitle}>{tt('defi.lend.supplyAssets')}</Text>

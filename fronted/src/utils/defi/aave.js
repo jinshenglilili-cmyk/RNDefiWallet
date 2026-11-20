@@ -83,6 +83,17 @@ export function withdrawData(asset, amount, to) {
   return encodeCall(AAVE_POOL_ABI, 'withdraw', [asset, amount, to]);
 }
 
+/** Pool.borrow：借出资产（interestRateMode 2 = 浮动利率，debtToken 余额随利息增长）
+ * 借款对象是储备 ERC20；原生币借的是 wrapped 形态，需调用方自行解包 */
+export function borrowData(asset, amount, onBehalfOf) {
+  return encodeCall(AAVE_POOL_ABI, 'borrow', [asset, amount, 2, 0, onBehalfOf]);
+}
+
+/** Pool.repay：偿还债务（interestRateMode 2 = 浮动利率） */
+export function repayData(asset, amount, onBehalfOf) {
+  return encodeCall(AAVE_POOL_ABI, 'repay', [asset, amount, 2, onBehalfOf]);
+}
+
 /** USD 金额格式化（base 货币 8 位精度 → '$12.34'） */
 export function formatBaseAmount(base) {
   const value = BigInt(base ?? 0n);

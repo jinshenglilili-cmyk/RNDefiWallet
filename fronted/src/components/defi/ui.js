@@ -51,13 +51,14 @@ export function DefiGuard({ session, hasAccount, children }) {
   return children;
 }
 
-/** 页面大标题（对齐钱包 tab 的头部样式）；测试网时标题旁带网络徽标 */
-export function DefiHeader({ title, subtitle }) {
+/** 页面大标题（对齐钱包 tab 的头部样式）；测试网时标题旁带网络徽标
+ * flush：true 时去掉顶部 58pt 状态栏留白——用于已有导航栏的 push 页面（标题贴着导航栏） */
+export function DefiHeader({ title, subtitle, flush = false }) {
   const t = useTheme();
   const network = useDefiNetwork((s) => s.network);
   const isTestnet = network === 'sepolia';
   return (
-    <View style={{ paddingTop: 58, marginBottom: 14 }}>
+    <View style={{ paddingTop: flush ? 0 : 58, marginBottom: flush ? 0 : 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <Text style={{ fontSize: 26, fontWeight: '900', color: t.accent }}>{title}</Text>
         {isTestnet ? (

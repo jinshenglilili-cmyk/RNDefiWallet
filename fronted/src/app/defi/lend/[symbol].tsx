@@ -23,10 +23,11 @@ import { assertSigningAccount, ensureApproval, signAndSendWithReceipt } from '@/
 import { DefiGuard, recordDefiTx } from '@/components/defi/ui';
 
 /**
- * 借贷详情页：存入 / 取回
+ * 存入详情页：单一资产的存入 / 取回（Aave V3）
  * - 数据按 URL 参数的 symbol 链上实时读（aToken 余额 = 我的存款）
  * - 存入：approve → Pool.supply（原生币先 wrap 成 WBNB/WETH）
  * - 取回：Pool.withdraw（原生币再 unwrap）
+ * - 借款相关已拆分到 /defi/borrow（借款列表 + 借款详情页）
  */
 export default function LendDetail() {
   const params = useLocalSearchParams();
@@ -290,7 +291,6 @@ export default function LendDetail() {
                 </TouchableOpacity>
               </>
             ) : null}
-
             <Text style={styles.tip}>
               {tt('defi.lend.sheetTip')}
             </Text>
