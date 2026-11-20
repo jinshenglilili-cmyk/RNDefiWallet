@@ -7,10 +7,6 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)
 ![zustand](https://img.shields.io/badge/zustand-5-FA8420)
 
-<p align="center">
-  <img src="docs/demo.gif" width="320" alt="项目演示：借贷 Tab → 借款列表 → ETH 借款详情（Aave V3 · Sepolia）" />
-</p>
-
 ## 功能
 
 - **行情**：CoinGecko 加密货币行情列表、币种详情
